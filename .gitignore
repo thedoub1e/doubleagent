@@ -1,0 +1,16 @@
+# secrets — 永不进 git
+.env
+.env.*
+!.env.example
+*.local
+config.local.json
+
+# deps / build
+node_modules/
+dist/
+out/
+.vite/
+*.log
+
+# macOS
+.DS_Store

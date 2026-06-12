@@ -1,0 +1,32 @@
+# Principal
+
+> Owner: 用户（double）。由 Claude 在初始化时起草；此后仅用户可编辑
+> （Claude 仅在被明确要求时才改 —— guard 钩子会要求用户确认任何改动）。
+
+## End Goal
+做一个 **macOS 上的「线条小狗」AI 桌宠**：一只常驻桌面的线条小狗，点开即可像
+Gemini 那样聊天。最终交付给一位**电脑小白的伴侣**——对方从 GitHub 拉下来、
+填入自己的 API Key，即可使用。核心是**保姆级、零命令行心智负担的安装体验**，
+以及一份**依赖少、可审计、安全可控**的简单实现。
+
+## Key Restrictions
+- **平台**：仅 macOS（双方都是 MacBook，含 Apple Silicon）。不做 Windows/Linux。
+- **模型**：只接 **国产模型**（DeepSeek / 通义千问 / 智谱 GLM / Kimi 等）**或对方的
+  Gemini 反向代理**。**不接 OpenAI/ChatGPT 官方，不接 Anthropic。** 模型层走
+  **OpenAI 兼容 `/chat/completions`** 抽象，填 baseURL + key + model 即可换源。
+- **安全可审计**：用户不信任复杂第三方项目 → 依赖尽量少、代码量可读可审计、
+  不引入来路不明的二进制 / 遥测 / 上报。
+- **面向电脑小白**：必须有**保姆级**安装（一键 `.command` 脚本 + 图文教程），
+  尽量不让对方碰命令行；安装失败点要提前想清楚并兜底。
+- **分发**：GitHub pull + 填 API。**不做付费 Apple 签名/公证**（个人赠予，非商用）。
+  优先用「从源码 npm start 运行」路径以**绕开 Gatekeeper「无法验证开发者」拦截**。
+- **密钥安全**：API Key 等只存本地（本地配置 / `.env`），**绝不进 git、绝不硬编码、
+  绝不上传**。仓库提供 `.env.example` 占位。
+
+## Scope / Non-goals
+- 不做 Windows / Linux。
+- 不做 Live2D / 二次元风格（形象是扁平线条小狗，非 anime）。
+- 首版不做语音唤醒 / TTS / ASR（可后续迭代）。
+- 不做云端后端 / 账号系统 / 服务器（纯本地客户端 + 直连模型 API）。
+- 不做付费签名公证分发。
+- 线条小狗 IP **仅个人自用 / 赠予伴侣**，不公开商用分发（规避版权风险）。
