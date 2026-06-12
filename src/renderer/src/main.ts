@@ -17,23 +17,26 @@ window.api.onMood((mood) => {
   if ((VALID_MOODS as string[]).includes(mood)) dog.setMood(mood as Mood)
 })
 
-// 提醒触发：小狗蹦一下吸引注意。
+// 提醒触发：小狗蹦一下吸引注意 + 动图集模式播放「提醒」动图。
 window.api.onAttention(() => {
   dog.el.classList.remove('pet--attention')
   void dog.el.offsetWidth // 强制重排以重启动画
   dog.el.classList.add('pet--attention')
+  dog.flashAttention()
 })
 
-// 形象下发：精灵图 / 单图 / 默认自绘狗。优先级在主进程已决定。
+// 形象下发：精灵图 / 单图 / 动图集 / 默认自绘狗。优先级在主进程已决定。
 window.api.onVisual((visual) => {
   if (visual.kind === 'sprite') {
+    dog.setGifSet(null)
     dog.setSprite({ dataUrl: visual.dataUrl, rows: visual.rows, cols: visual.cols, fps: visual.fps })
   } else if (visual.kind === 'image') {
-    dog.setSprite(null)
+    dog.setGifSet(null)
     dog.setImage(visual.dataUrl)
+  } else if (visual.kind === 'gifset') {
+    dog.setGifSet(visual.pools)
   } else {
-    dog.setSprite(null)
-    dog.setImage(null)
+    dog.setGifSet(null)
   }
 })
 

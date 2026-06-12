@@ -67,10 +67,18 @@ export interface SpriteDims {
   fps: number
 }
 
+export interface GifPoolsView {
+  idle: string[]
+  thinking: string[]
+  reply: string[]
+  attention: string[]
+}
+
 export type PetVisual =
   | { kind: 'default' }
   | { kind: 'image'; dataUrl: string }
   | { kind: 'sprite'; dataUrl: string; rows: number; cols: number; fps: number }
+  | { kind: 'gifset'; pools: GifPoolsView }
 
 export interface PublicConfigView {
   provider: string

@@ -51,12 +51,23 @@ const dogSvg = (face: string): string => `
   <g class="pet__face">${face}</g>
 </svg>`
 
+export interface GifPools {
+  idle: string[]
+  thinking: string[]
+  reply: string[]
+  attention: string[]
+}
+
+const IDLE_CYCLE_MS = 7000
+
 export interface Dog {
   el: HTMLDivElement
   chatButton: HTMLButtonElement
   setMood: (mood: Mood) => void
   setImage: (dataUrl: string | null) => void
   setSprite: (config: SpriteConfig | null) => void
+  setGifSet: (pools: GifPools | null) => void
+  flashAttention: () => void
 }
 
 export function createDog(): Dog {
@@ -73,12 +84,48 @@ export function createDog(): Dog {
   const caption = el.querySelector('.pet__caption') as HTMLDivElement
 
   let currentMood: Mood = 'idle'
-  let mode: 'svg' | 'image' | 'sprite' = 'svg'
+  let mode: 'svg' | 'image' | 'sprite' | 'gifset' = 'svg'
   let sprite: SpriteHandle | null = null
+  let gifPools: GifPools | null = null
+  let idleCycle: ReturnType<typeof setInterval> | null = null
 
   const stopSprite = (): void => {
     sprite?.stop()
     sprite = null
+  }
+  const stopIdleCycle = (): void => {
+    if (idleCycle) clearInterval(idleCycle)
+    idleCycle = null
+  }
+  const cleanupAnim = (): void => {
+    stopSprite()
+    stopIdleCycle()
+  }
+
+  const pick = (arr: string[]): string | undefined =>
+    arr.length > 0 ? arr[Math.floor(Math.random() * arr.length)] : undefined
+
+  const showGif = (url: string): void => {
+    const img = document.createElement('img')
+    img.className = 'pet__img'
+    img.src = url
+    img.alt = '桌宠'
+    stage.replaceChildren(img)
+  }
+
+  const poolFor = (mood: Mood): string[] => {
+    if (!gifPools) return []
+    return gifPools[mood].length > 0 ? gifPools[mood] : gifPools.idle
+  }
+
+  const startIdleCycle = (): void => {
+    stopIdleCycle()
+    if (gifPools && gifPools.idle.length > 1) {
+      idleCycle = setInterval(() => {
+        const url = pick(gifPools!.idle)
+        if (url) showGif(url)
+      }, IDLE_CYCLE_MS)
+    }
   }
 
   const setMood = (mood: Mood): void => {
@@ -87,6 +134,11 @@ export function createDog(): Dog {
     stage.dataset.mood = mood
     if (mode === 'sprite') {
       sprite?.setRow(ROW_MAP[mood])
+    } else if (mode === 'gifset') {
+      stopIdleCycle()
+      const url = pick(poolFor(mood))
+      if (url) showGif(url)
+      if (mood === 'idle') startIdleCycle()
     } else if (mode === 'svg') {
       // 重建整段 SVG：经 HTML 解析器路径，<circle>/<path> 才落到正确的 SVG 命名空间。
       stage.innerHTML = dogSvg(FACE[mood])
@@ -95,23 +147,19 @@ export function createDog(): Dog {
 
   // 单图形象：有 dataUrl 用 <img>(GIF 自带动画)；null 回到自绘三态狗。
   const setImage = (dataUrl: string | null): void => {
-    stopSprite()
+    cleanupAnim()
     if (dataUrl) {
       mode = 'image'
-      const img = document.createElement('img')
-      img.className = 'pet__img'
-      img.src = dataUrl
-      img.alt = '桌宠'
-      stage.replaceChildren(img)
+      showGif(dataUrl)
     } else {
       mode = 'svg'
       setMood(currentMood)
     }
   }
 
-  // 精灵图：行=状态、列=帧，rAF 分帧播放，按情绪切行。null 不在此恢复（由调用方接 setImage）。
+  // 精灵图：行=状态、列=帧，rAF 分帧播放。null 不在此恢复（由调用方接 setImage）。
   const setSprite = (config: SpriteConfig | null): void => {
-    stopSprite()
+    cleanupAnim()
     if (!config) return
     mode = 'sprite'
     sprite = createSprite(config)
@@ -119,5 +167,31 @@ export function createDog(): Dog {
     sprite.setRow(ROW_MAP[currentMood])
   }
 
-  return { el, chatButton, setMood, setImage, setSprite }
+  // 动图集：按情绪从对应池子随机播放；待机在池子内轮换。null → 回自绘狗。
+  const setGifSet = (pools: GifPools | null): void => {
+    cleanupAnim()
+    const total = pools
+      ? pools.idle.length + pools.thinking.length + pools.reply.length + pools.attention.length
+      : 0
+    if (pools && total > 0) {
+      mode = 'gifset'
+      gifPools = pools
+      setMood(currentMood)
+    } else {
+      gifPools = null
+      mode = 'svg'
+      setMood(currentMood)
+    }
+  }
+
+  // 提醒触发时播放「提醒」池动图（动图集模式）；其它模式无操作（靠蹦跳动画）。
+  const flashAttention = (): void => {
+    if (mode !== 'gifset' || !gifPools) return
+    stopIdleCycle()
+    const fallback = gifPools.attention.length > 0 ? gifPools.attention : gifPools.reply
+    const url = pick(fallback.length > 0 ? fallback : gifPools.idle)
+    if (url) showGif(url)
+  }
+
+  return { el, chatButton, setMood, setImage, setSprite, setGifSet, flashAttention }
 }

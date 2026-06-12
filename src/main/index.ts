@@ -7,6 +7,8 @@ import { appendMessage, clearHistory, loadHistory } from './history'
 import { clearMemory, loadMemory, saveMemory } from './memory'
 import { startScheduler } from './scheduler'
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
+import { existsSync } from 'node:fs'
+import { ASSET_DIR, hasAnyGif, loadGifPools, type PetGifPools } from './petAssets'
 
 // 启动即读项目 .env（让 MINIMAX_API_KEY 等可写进文件，不必走 UI）。
 loadDotEnv()
@@ -67,7 +69,18 @@ function createPetWindow(): void {
   })
 }
 
-// 形象优先级：精灵图 > 单图/GIF > 默认自绘狗。统一一个 pet:visual 事件下发。
+let gifPoolsCache: PetGifPools | null = null
+function gifPools(): PetGifPools {
+  if (!gifPoolsCache) {
+    // 优先项目根（从源码运行时 cwd=项目根），回退 app 安装目录。
+    const fromCwd = join(process.cwd(), ASSET_DIR)
+    const dir = existsSync(fromCwd) ? fromCwd : join(app.getAppPath(), ASSET_DIR)
+    gifPoolsCache = loadGifPools(dir)
+  }
+  return gifPoolsCache
+}
+
+// 形象优先级：精灵图 > 单图/GIF > 动图集(gif图/) > 默认自绘狗。统一 pet:visual 下发。
 function sendPetVisual(): void {
   const cfg = loadConfig()
   if (cfg.spriteSheet?.path) {
@@ -84,10 +97,16 @@ function sendPetVisual(): void {
     }
   }
   const imageUrl = petImageDataUrl(cfg.petImagePath)
-  petWindow?.webContents.send(
-    'pet:visual',
-    imageUrl ? { kind: 'image', dataUrl: imageUrl } : { kind: 'default' }
-  )
+  if (imageUrl) {
+    petWindow?.webContents.send('pet:visual', { kind: 'image', dataUrl: imageUrl })
+    return
+  }
+  const pools = gifPools()
+  if (hasAnyGif(pools)) {
+    petWindow?.webContents.send('pet:visual', { kind: 'gifset', pools })
+    return
+  }
+  petWindow?.webContents.send('pet:visual', { kind: 'default' })
 }
 
 function createChatWindow(): void {
@@ -186,8 +205,9 @@ function fireReminder(reminder: Reminder): void {
   }
   appendMessage({ role: 'assistant', content: reminder.message })
   chatWindow?.webContents.send('chat:proactive', reminder.message)
-  petWindow?.webContents.send('pet:attention')
+  // 先发情绪(reply)，再发 attention —— 动图集模式下「提醒」动图后到、压过 reply，先到先被覆盖。
   setMood('reply')
+  petWindow?.webContents.send('pet:attention')
   scheduleIdle()
 }
 

@@ -13,10 +13,18 @@ interface PublicConfigView {
   spriteSheet?: SpriteDims
 }
 
+interface GifPoolsView {
+  idle: string[]
+  thinking: string[]
+  reply: string[]
+  attention: string[]
+}
+
 type PetVisual =
   | { kind: 'default' }
   | { kind: 'image'; dataUrl: string }
   | { kind: 'sprite'; dataUrl: string; rows: number; cols: number; fps: number }
+  | { kind: 'gifset'; pools: GifPoolsView }
 
 interface DoubleAgentApi {
   setIgnore: (ignore: boolean) => void
