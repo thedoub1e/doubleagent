@@ -12,6 +12,7 @@ function inline(text: string): string {
   out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>')
   out = out.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<em>$2</em>')
+  out = out.replace(/(^|[^_])_([^_\s][^_]*?)_(?!_)/g, '$1<em>$2</em>')
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
     (_m, t: string, u: string) => `<a class="md-link" data-href="${u}">${t}</a>`)
   return out

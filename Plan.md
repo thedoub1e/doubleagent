@@ -88,14 +88,14 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [ ] 配置与密钥：本地存储、`.env.example`、`.gitignore` 屏蔽密钥（已建 .gitignore）
 - [x] 保姆级安装：`安装.command`(检测Node→开官网/装依赖走npmmirror→补Electron运行时) + `启动小狗.command`(校验后 npm start)；可执行+语法校验过。自启动登录项留后续
 - [x] 图文教程：README.md（安装三步/拿MiniMax key/玩法/FAQ含401站点坑/Gatekeeper右键打开/隐私）；截图待补
-- [ ] 测试：模型层单测、安装脚本在干净 Mac 上的演练、聊天 E2E
+- [x] 单元测试：vitest 覆盖纯逻辑(markdown/providers/scheduleUtil)18 测；安装脚本干净 Mac 演练 + 聊天 E2E 留真机
 - [ ] 在自己机器上完整演练「对方视角」：从 0 拉仓库到能聊天
 
 ## In Progress / 下一步候选
-- [ ] 长期记忆：滚动摘要式（避免历史无限增长撑爆上下文）
-- [ ] 单元测试：markdown.ts / providers.ts / scheduler 时间逻辑（纯函数好测）
-- [ ] README 截图 + 伴侣在国外实测一次（确认 api.minimaxi.com 境外可达）
-- [ ] 登录项自启动（可选）
+- [x] 长期记忆：滚动摘要式（memory.json，超24条压缩旧对话进摘要注入人设）
+- [x] 单元测试：vitest，markdown(10)/providers(4)/scheduleUtil(4) 共 18 测全过
+- [ ] README 截图 + 伴侣在国外实测一次（确认 api.minimaxi.com 境外可达）—— 待真机
+- [~] 登录项自启动：**暂不做**。从源码 npm start 运行下 setLoginItemSettings 指向 Electron 可执行档而非 npm 启动，跑不起来；正解是 LaunchAgent 调 npm start，但 node PATH 对小白脆弱易坏。双击 启动小狗.command 更稳。
 
 ## Done
 - [x] 调研可二开/参考的开源桌宠项目（Open-LLM-VTuber 等 + 用户指定的 Clarvis）

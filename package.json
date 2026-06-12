@@ -10,14 +10,16 @@
     "dev": "electron-vite dev",
     "start": "electron-vite build && electron-vite preview",
     "build": "electron-vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^34.2.0",
     "electron-vite": "^5.0.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.79.1"
