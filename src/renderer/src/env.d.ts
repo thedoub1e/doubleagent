@@ -9,7 +9,14 @@ interface PublicConfigView {
   supervisionEnabled: boolean
   reminders: ReminderView[]
   hasPetImage: boolean
+  hasSprite: boolean
+  spriteSheet?: SpriteDims
 }
+
+type PetVisual =
+  | { kind: 'default' }
+  | { kind: 'image'; dataUrl: string }
+  | { kind: 'sprite'; dataUrl: string; rows: number; cols: number; fps: number }
 
 interface DoubleAgentApi {
   setIgnore: (ignore: boolean) => void
@@ -18,9 +25,12 @@ interface DoubleAgentApi {
   openExternal: (url: string) => void
   onMood: (cb: (mood: string) => void) => void
   onAttention: (cb: () => void) => void
-  onPetImage: (cb: (dataUrl: string | null) => void) => void
+  onVisual: (cb: (visual: PetVisual) => void) => void
   pickPetImage: () => Promise<PublicConfigView>
   resetPetImage: () => Promise<PublicConfigView>
+  pickSprite: (dims: SpriteDims) => Promise<PublicConfigView>
+  applySprite: (dims: SpriteDims) => Promise<PublicConfigView>
+  clearSprite: () => Promise<PublicConfigView>
   chat: {
     send: (text: string) => void
     abort: () => void
@@ -45,6 +55,11 @@ declare global {
     time: string
     message: string
     enabled: boolean
+  }
+  interface SpriteDims {
+    rows: number
+    cols: number
+    fps: number
   }
   interface Window {
     api: DoubleAgentApi

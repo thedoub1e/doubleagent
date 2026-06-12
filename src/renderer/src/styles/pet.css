@@ -90,6 +90,12 @@ body {
   pointer-events: none;
 }
 
+.pet__sprite {
+  image-rendering: auto;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
+  pointer-events: none;
+}
+
 /* 聊天气泡按钮：悬停才浮现，不挡平时桌面。 */
 .pet__chat {
   position: absolute;

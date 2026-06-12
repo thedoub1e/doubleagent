@@ -24,8 +24,18 @@ window.api.onAttention(() => {
   dog.el.classList.add('pet--attention')
 })
 
-// 自定义形象（用户上传的图片/GIF）；null 表示用回自绘狗。
-window.api.onPetImage((dataUrl) => dog.setImage(dataUrl))
+// 形象下发：精灵图 / 单图 / 默认自绘狗。优先级在主进程已决定。
+window.api.onVisual((visual) => {
+  if (visual.kind === 'sprite') {
+    dog.setSprite({ dataUrl: visual.dataUrl, rows: visual.rows, cols: visual.cols, fps: visual.fps })
+  } else if (visual.kind === 'image') {
+    dog.setSprite(null)
+    dog.setImage(visual.dataUrl)
+  } else {
+    dog.setSprite(null)
+    dog.setImage(null)
+  }
+})
 
 // ---- 点击穿透 ----
 // 窗口默认可交互。鼠标移动时用 elementFromPoint 看落点是否在小狗(.pet)上：

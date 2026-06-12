@@ -13,11 +13,14 @@ const api = {
   onAttention: (cb: () => void): void => {
     ipcRenderer.on('pet:attention', () => cb())
   },
-  onPetImage: (cb: (dataUrl: string | null) => void): void => {
-    ipcRenderer.on('pet:image', (_e, dataUrl: string | null) => cb(dataUrl))
+  onVisual: (cb: (visual: PetVisual) => void): void => {
+    ipcRenderer.on('pet:visual', (_e, visual: PetVisual) => cb(visual))
   },
   pickPetImage: (): Promise<PublicConfigView> => ipcRenderer.invoke('pet:pick-image'),
   resetPetImage: (): Promise<PublicConfigView> => ipcRenderer.invoke('pet:reset-image'),
+  pickSprite: (dims: SpriteDims): Promise<PublicConfigView> => ipcRenderer.invoke('pet:pick-sprite', dims),
+  applySprite: (dims: SpriteDims): Promise<PublicConfigView> => ipcRenderer.invoke('pet:apply-sprite', dims),
+  clearSprite: (): Promise<PublicConfigView> => ipcRenderer.invoke('pet:clear-sprite'),
 
   // —— 聊天 ——
   chat: {
@@ -58,6 +61,17 @@ export interface ReminderView {
   enabled: boolean
 }
 
+export interface SpriteDims {
+  rows: number
+  cols: number
+  fps: number
+}
+
+export type PetVisual =
+  | { kind: 'default' }
+  | { kind: 'image'; dataUrl: string }
+  | { kind: 'sprite'; dataUrl: string; rows: number; cols: number; fps: number }
+
 export interface PublicConfigView {
   provider: string
   model: string
@@ -67,6 +81,8 @@ export interface PublicConfigView {
   supervisionEnabled: boolean
   reminders: ReminderView[]
   hasPetImage: boolean
+  hasSprite: boolean
+  spriteSheet?: SpriteDims
 }
 
 contextBridge.exposeInMainWorld('api', api)

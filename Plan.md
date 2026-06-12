@@ -92,6 +92,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [ ] 在自己机器上完整演练「对方视角」：从 0 拉仓库到能聊天
 
 ## In Progress / 下一步候选
+- [x] 精灵图(sprite sheet)动画支持：sprite.ts(rAF 分帧,行=状态/列=帧,按情绪切行);形象优先级 精灵图>单图/GIF>默认狗,统一 pet:visual 下发;设置面板 选精灵图+行/列/帧率+应用/清除。用户将自备线条小狗精灵图(类 Clarvis)。
 - [x] 长期记忆：滚动摘要式（memory.json，超24条压缩旧对话进摘要注入人设）
 - [x] 单元测试：vitest，markdown(10)/providers(4)/scheduleUtil(4) 共 18 测全过
 - [ ] README 截图 + 伴侣在国外实测一次（确认 api.minimaxi.com 境外可达）—— 待真机

@@ -60,16 +60,34 @@ function createPetWindow(): void {
   petWindow.setIgnoreMouseEvents(false)
 
   loadRenderer(petWindow, 'index')
-  // 渲染层就绪后推送自定义形象（若有）。
-  petWindow.webContents.on('did-finish-load', () => sendPetImage())
+  // 渲染层就绪后推送当前形象（精灵图 / 单图 / 默认）。
+  petWindow.webContents.on('did-finish-load', () => sendPetVisual())
   petWindow.on('closed', () => {
     petWindow = null
   })
 }
 
-function sendPetImage(): void {
-  const url = petImageDataUrl(loadConfig().petImagePath)
-  petWindow?.webContents.send('pet:image', url)
+// 形象优先级：精灵图 > 单图/GIF > 默认自绘狗。统一一个 pet:visual 事件下发。
+function sendPetVisual(): void {
+  const cfg = loadConfig()
+  if (cfg.spriteSheet?.path) {
+    const dataUrl = petImageDataUrl(cfg.spriteSheet.path)
+    if (dataUrl) {
+      petWindow?.webContents.send('pet:visual', {
+        kind: 'sprite',
+        dataUrl,
+        rows: cfg.spriteSheet.rows,
+        cols: cfg.spriteSheet.cols,
+        fps: cfg.spriteSheet.fps
+      })
+      return
+    }
+  }
+  const imageUrl = petImageDataUrl(cfg.petImagePath)
+  petWindow?.webContents.send(
+    'pet:visual',
+    imageUrl ? { kind: 'image', dataUrl: imageUrl } : { kind: 'default' }
+  )
 }
 
 function createChatWindow(): void {
@@ -213,14 +231,48 @@ ipcMain.handle('pet:pick-image', async () => {
   })
   const picked = res.canceled ? undefined : res.filePaths[0]
   if (picked) {
-    saveConfig({ petImagePath: storePetImage(picked) })
-    sendPetImage()
+    saveConfig({ petImagePath: storePetImage(picked), spriteSheet: undefined })
+    sendPetVisual()
   }
   return publicConfig()
 })
 ipcMain.handle('pet:reset-image', () => {
-  saveConfig({ petImagePath: '' })
-  sendPetImage()
+  saveConfig({ petImagePath: '', spriteSheet: undefined })
+  sendPetVisual()
+  return publicConfig()
+})
+
+// ---- 精灵图 ----
+interface SpriteDims {
+  rows: number
+  cols: number
+  fps: number
+}
+ipcMain.handle('pet:pick-sprite', async (_e, dims: SpriteDims) => {
+  const res = await dialog.showOpenDialog({
+    title: '选一张精灵图（行=状态，列=帧）',
+    properties: ['openFile'],
+    filters: [{ name: '图片', extensions: PET_IMAGE_EXTENSIONS }]
+  })
+  const picked = res.canceled ? undefined : res.filePaths[0]
+  if (picked) {
+    const path = storePetImage(picked, 'pet-sprite')
+    saveConfig({ spriteSheet: { path, rows: dims.rows, cols: dims.cols, fps: dims.fps } })
+    sendPetVisual()
+  }
+  return publicConfig()
+})
+ipcMain.handle('pet:apply-sprite', (_e, dims: SpriteDims) => {
+  const cfg = loadConfig()
+  if (cfg.spriteSheet?.path) {
+    saveConfig({ spriteSheet: { ...cfg.spriteSheet, ...dims } })
+    sendPetVisual()
+  }
+  return publicConfig()
+})
+ipcMain.handle('pet:clear-sprite', () => {
+  saveConfig({ spriteSheet: undefined })
+  sendPetVisual()
   return publicConfig()
 })
 ipcMain.on('chat:abort', () => abortChat())

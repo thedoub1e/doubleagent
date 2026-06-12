@@ -164,6 +164,17 @@ body {
   border-color: var(--accent);
 }
 
+.sprite-fields {
+  display: flex;
+  gap: 6px;
+}
+.field--sm {
+  flex: 1;
+}
+.field--sm input {
+  width: 100%;
+}
+
 .settings__row {
   display: flex;
   justify-content: space-between;

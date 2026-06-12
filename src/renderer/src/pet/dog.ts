@@ -1,6 +1,8 @@
 // 占位线条小狗（自绘扁平风，原创 fallback）。后续会替换为现成线条小狗素材 / 用户上传图片。
 // 三态情绪：idle 待机 / thinking 思考 / reply 回复。仅靠换「脸」表达，身体不变。
 
+import { createSprite, type SpriteConfig, type SpriteHandle } from './sprite'
+
 export type Mood = 'idle' | 'thinking' | 'reply'
 
 const CAPTION: Record<Mood, string> = {
@@ -9,34 +11,43 @@ const CAPTION: Record<Mood, string> = {
   reply: '汪！'
 }
 
-// 每个脸是一段 SVG，注入到 <g class="pet__face">，坐标基于头部圆心 (90, 92)。
+// 情绪 → 精灵图行号（每状态一行）。
+const ROW_MAP: Record<Mood, number> = { idle: 0, thinking: 1, reply: 2 }
+
+// 线条小狗风（极简线条马尔济斯）：大圆头 + 两只长垂耳框脸 + 豆豆眼。坐标基于头心 (90, 84)。
+// 每个脸是一段 SVG，注入到 <g class="pet__face">。
 const FACE: Record<Mood, string> = {
   idle: `
-    <circle cx="74" cy="94" r="4.5" fill="#1a1a1a" />
-    <circle cx="106" cy="94" r="4.5" fill="#1a1a1a" />
-    <path d="M82 112 q8 7 16 0" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" />
+    <circle cx="78" cy="82" r="4.2" fill="#1a1a1a" />
+    <circle cx="102" cy="82" r="4.2" fill="#1a1a1a" />
+    <circle cx="90" cy="93" r="3" fill="#1a1a1a" />
+    <path d="M83 99 q7 6 14 0" fill="none" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
   `,
   thinking: `
-    <path d="M68 92 q6 -7 12 0" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" />
-    <path d="M100 92 q6 -7 12 0" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" />
-    <circle cx="90" cy="114" r="2.6" fill="#1a1a1a" />
+    <path d="M73 82 q5 -6 10 0" fill="none" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+    <path d="M97 82 q5 -6 10 0" fill="none" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+    <circle cx="90" cy="93" r="3" fill="#1a1a1a" />
+    <circle cx="90" cy="101" r="2" fill="#1a1a1a" />
   `,
   reply: `
-    <path d="M68 96 q6 6 12 0" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" />
-    <path d="M100 96 q6 6 12 0" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" />
-    <path d="M80 110 q10 11 20 0" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" />
+    <path d="M73 84 q5 5 10 0" fill="none" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+    <path d="M97 84 q5 5 10 0" fill="none" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+    <circle cx="90" cy="93" r="3" fill="#1a1a1a" />
+    <path d="M82 99 q8 9 16 0" fill="none" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
   `
 }
 
+const STROKE = '#2b2b2b'
+
 const dogSvg = (face: string): string => `
 <svg class="pet__svg" viewBox="0 0 180 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <path d="M138 152 q28 -6 18 -30" fill="none" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round" />
-  <ellipse cx="90" cy="152" rx="46" ry="34" fill="#fff" stroke="#1a1a1a" stroke-width="4" />
-  <path d="M72 184 v9 M108 184 v9" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round" />
-  <circle cx="90" cy="92" r="46" fill="#fff" stroke="#1a1a1a" stroke-width="4" />
-  <path d="M50 64 q-16 6 -10 30 q12 4 18 -10 z" fill="#fff" stroke="#1a1a1a" stroke-width="4" />
-  <path d="M130 64 q16 6 10 30 q-12 4 -18 -10 z" fill="#fff" stroke="#1a1a1a" stroke-width="4" />
-  <circle cx="90" cy="103" r="3.4" fill="#1a1a1a" />
+  <path d="M124 150 q20 1 16 -18" fill="none" stroke="${STROKE}" stroke-width="3.2" stroke-linecap="round" />
+  <ellipse cx="90" cy="150" rx="33" ry="25" fill="#fff" stroke="${STROKE}" stroke-width="3.2" />
+  <ellipse cx="78" cy="171" rx="8.5" ry="6" fill="#fff" stroke="${STROKE}" stroke-width="3.2" />
+  <ellipse cx="102" cy="171" rx="8.5" ry="6" fill="#fff" stroke="${STROKE}" stroke-width="3.2" />
+  <path d="M64 60 q-26 6 -22 46 q2 16 18 14 q3 -30 8 -56 z" fill="#fff" stroke="${STROKE}" stroke-width="3.2" stroke-linejoin="round" />
+  <path d="M116 60 q26 6 22 46 q-2 16 -18 14 q-3 -30 -8 -56 z" fill="#fff" stroke="${STROKE}" stroke-width="3.2" stroke-linejoin="round" />
+  <ellipse cx="90" cy="84" rx="42" ry="40" fill="#fff" stroke="${STROKE}" stroke-width="3.4" />
   <g class="pet__face">${face}</g>
 </svg>`
 
@@ -45,6 +56,7 @@ export interface Dog {
   chatButton: HTMLButtonElement
   setMood: (mood: Mood) => void
   setImage: (dataUrl: string | null) => void
+  setSprite: (config: SpriteConfig | null) => void
 }
 
 export function createDog(): Dog {
@@ -61,32 +73,51 @@ export function createDog(): Dog {
   const caption = el.querySelector('.pet__caption') as HTMLDivElement
 
   let currentMood: Mood = 'idle'
-  let customImage = false
+  let mode: 'svg' | 'image' | 'sprite' = 'svg'
+  let sprite: SpriteHandle | null = null
+
+  const stopSprite = (): void => {
+    sprite?.stop()
+    sprite = null
+  }
 
   const setMood = (mood: Mood): void => {
     currentMood = mood
     caption.textContent = CAPTION[mood]
     stage.dataset.mood = mood
-    if (customImage) return
-    // 重建整段 SVG：经 HTML 解析器路径，<circle>/<path> 才会落到正确的 SVG 命名空间。
-    // （直接对 SVG <g> 设 innerHTML 会落到 HTML 命名空间而不渲染。）
-    stage.innerHTML = dogSvg(FACE[mood])
+    if (mode === 'sprite') {
+      sprite?.setRow(ROW_MAP[mood])
+    } else if (mode === 'svg') {
+      // 重建整段 SVG：经 HTML 解析器路径，<circle>/<path> 才落到正确的 SVG 命名空间。
+      stage.innerHTML = dogSvg(FACE[mood])
+    }
   }
 
-  // 自定义形象：有 dataUrl 用 <img>(GIF 自带动画)；null 则回到自绘三态狗。
+  // 单图形象：有 dataUrl 用 <img>(GIF 自带动画)；null 回到自绘三态狗。
   const setImage = (dataUrl: string | null): void => {
+    stopSprite()
     if (dataUrl) {
-      customImage = true
+      mode = 'image'
       const img = document.createElement('img')
       img.className = 'pet__img'
       img.src = dataUrl
       img.alt = '桌宠'
       stage.replaceChildren(img)
     } else {
-      customImage = false
+      mode = 'svg'
       setMood(currentMood)
     }
   }
 
-  return { el, chatButton, setMood, setImage }
+  // 精灵图：行=状态、列=帧，rAF 分帧播放，按情绪切行。null 不在此恢复（由调用方接 setImage）。
+  const setSprite = (config: SpriteConfig | null): void => {
+    stopSprite()
+    if (!config) return
+    mode = 'sprite'
+    sprite = createSprite(config)
+    stage.replaceChildren(sprite.el)
+    sprite.setRow(ROW_MAP[currentMood])
+  }
+
+  return { el, chatButton, setMood, setImage, setSprite }
 }

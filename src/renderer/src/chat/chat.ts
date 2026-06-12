@@ -41,6 +41,16 @@ root.innerHTML = `
         <button class="ghost-btn" id="btn-pick-image">选形象图 / GIF</button>
         <button class="ghost-btn" id="btn-reset-image">恢复默认狗</button>
       </div>
+      <div class="sprite-fields">
+        <label class="field field--sm"><span>行 / 状态</span><input id="sp-rows" type="number" min="1" value="3" /></label>
+        <label class="field field--sm"><span>列 / 帧</span><input id="sp-cols" type="number" min="1" value="4" /></label>
+        <label class="field field--sm"><span>帧率</span><input id="sp-fps" type="number" min="1" value="8" /></label>
+      </div>
+      <div class="settings__row">
+        <button class="ghost-btn" id="btn-pick-sprite">选精灵图</button>
+        <button class="ghost-btn" id="btn-apply-sprite">应用参数</button>
+        <button class="ghost-btn" id="btn-clear-sprite">清除精灵图</button>
+      </div>
       <div class="settings__row">
         <button class="ghost-btn" id="btn-clear">清空对话</button>
         <button class="primary-btn" id="btn-save">保存</button>
@@ -225,6 +235,11 @@ async function loadConfig(): Promise<void> {
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
   supervisionChk.checked = cfg.supervisionEnabled
   renderReminders(cfg.reminders)
+  if (cfg.spriteSheet) {
+    spRows.value = String(cfg.spriteSheet.rows)
+    spCols.value = String(cfg.spriteSheet.cols)
+    spFps.value = String(cfg.spriteSheet.fps)
+  }
   if (!cfg.hasApiKey) {
     showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 Key。')
     settingsEl.hidden = false
@@ -287,6 +302,29 @@ el<HTMLButtonElement>('btn-pick-image').addEventListener('click', async () => {
 el<HTMLButtonElement>('btn-reset-image').addEventListener('click', async () => {
   await window.api.resetPetImage()
   settingsHint.textContent = '已恢复默认狗 🐶'
+})
+
+const spRows = el<HTMLInputElement>('sp-rows')
+const spCols = el<HTMLInputElement>('sp-cols')
+const spFps = el<HTMLInputElement>('sp-fps')
+function spriteDims(): SpriteDims {
+  return {
+    rows: Number(spRows.value) || 3,
+    cols: Number(spCols.value) || 4,
+    fps: Number(spFps.value) || 8
+  }
+}
+el<HTMLButtonElement>('btn-pick-sprite').addEventListener('click', async () => {
+  const cfg = await window.api.pickSprite(spriteDims())
+  settingsHint.textContent = cfg.hasSprite ? '精灵图已设置 ✓（每行一个状态）' : '未选择精灵图'
+})
+el<HTMLButtonElement>('btn-apply-sprite').addEventListener('click', async () => {
+  await window.api.applySprite(spriteDims())
+  settingsHint.textContent = '精灵图参数已应用'
+})
+el<HTMLButtonElement>('btn-clear-sprite').addEventListener('click', async () => {
+  await window.api.clearSprite()
+  settingsHint.textContent = '精灵图已清除'
 })
 
 void renderHistory()

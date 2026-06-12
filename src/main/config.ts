@@ -19,6 +19,13 @@ export interface Reminder {
   enabled: boolean
 }
 
+export interface SpriteSheet {
+  path: string
+  rows: number // 行数 = 状态数（待机/思考/回复…）
+  cols: number // 每行帧数
+  fps: number
+}
+
 export interface AppConfig {
   provider: string
   model: string
@@ -28,6 +35,7 @@ export interface AppConfig {
   supervisionEnabled: boolean
   reminders: Reminder[]
   petImagePath?: string
+  spriteSheet?: SpriteSheet
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -56,6 +64,8 @@ export interface PublicConfig {
   supervisionEnabled: boolean
   reminders: Reminder[]
   hasPetImage: boolean
+  hasSprite: boolean
+  spriteSheet?: { rows: number; cols: number; fps: number }
 }
 
 function configPath(): string {
@@ -100,6 +110,10 @@ export function publicConfig(): PublicConfig {
     systemPrompt: c.systemPrompt,
     supervisionEnabled: c.supervisionEnabled,
     reminders: c.reminders,
-    hasPetImage: (c.petImagePath ?? '').length > 0
+    hasPetImage: (c.petImagePath ?? '').length > 0,
+    hasSprite: (c.spriteSheet?.path ?? '').length > 0,
+    spriteSheet: c.spriteSheet
+      ? { rows: c.spriteSheet.rows, cols: c.spriteSheet.cols, fps: c.spriteSheet.fps }
+      : undefined
   }
 }

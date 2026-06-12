@@ -12,10 +12,10 @@ const MIME: Record<string, string> = {
 
 export const PET_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 
-/** 把用户选的图片复制进 userData（不进 git），返回存储路径。 */
-export function storePetImage(srcPath: string): string {
+/** 把用户选的图片复制进 userData（不进 git），返回存储路径。basename 区分单图 / 精灵图。 */
+export function storePetImage(srcPath: string, basename = 'pet-image'): string {
   const ext = extname(srcPath).toLowerCase()
-  const dest = join(app.getPath('userData'), `pet-image${ext}`)
+  const dest = join(app.getPath('userData'), `${basename}${ext}`)
   copyFileSync(srcPath, dest)
   return dest
 }
