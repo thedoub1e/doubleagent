@@ -58,6 +58,23 @@ body {
   transform: translateY(-1px);
 }
 
+/* 提醒时蹦跳吸引注意 */
+.pet--attention .pet__stage {
+  animation: pet-bounce 0.6s var(--ease) 2;
+}
+@keyframes pet-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-14px) scale(1.04);
+  }
+  60% {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
 .pet__svg {
   width: 168px;
   height: 188px;

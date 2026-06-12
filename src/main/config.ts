@@ -12,13 +12,27 @@ const DEFAULT_SYSTEM_PROMPT = [
   '默认用中文，除非用户用其他语言。'
 ].join('')
 
+export interface Reminder {
+  id: string
+  time: string // "HH:MM" 24 小时制
+  message: string
+  enabled: boolean
+}
+
 export interface AppConfig {
   provider: string
   model: string
   apiKey: string
   baseUrl?: string
   systemPrompt: string
+  supervisionEnabled: boolean
+  reminders: Reminder[]
 }
+
+const DEFAULT_REMINDERS: Reminder[] = [
+  { id: 'study', time: '21:00', message: '今天学习了吗？跟我汇报一下今天学了啥呀～📚', enabled: true },
+  { id: 'sleep', time: '23:30', message: '夜深啦，别熬太晚，早点休息哦，我一直陪着你 🐶🌙', enabled: true }
+]
 
 const DEFAULTS: AppConfig = {
   // 国内站 provider（端点 api.minimaxi.com/anthropic）。用户的 key 是国内站申请的，
@@ -26,7 +40,9 @@ const DEFAULTS: AppConfig = {
   provider: 'minimax-cn',
   model: 'MiniMax-M3',
   apiKey: '',
-  systemPrompt: DEFAULT_SYSTEM_PROMPT
+  systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  supervisionEnabled: true,
+  reminders: DEFAULT_REMINDERS
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
@@ -36,6 +52,8 @@ export interface PublicConfig {
   hasApiKey: boolean
   baseUrl?: string
   systemPrompt: string
+  supervisionEnabled: boolean
+  reminders: Reminder[]
 }
 
 function configPath(): string {
@@ -76,6 +94,8 @@ export function publicConfig(): PublicConfig {
     model: c.model,
     hasApiKey: c.apiKey.length > 0,
     baseUrl: c.baseUrl,
-    systemPrompt: c.systemPrompt
+    systemPrompt: c.systemPrompt,
+    supervisionEnabled: c.supervisionEnabled,
+    reminders: c.reminders
   }
 }

@@ -25,6 +25,11 @@ root.innerHTML = `
         <span>MiniMax API Key</span>
         <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
       </label>
+      <label class="check">
+        <input type="checkbox" id="chk-supervision" />
+        <span>主动监督（定时提醒 / 打卡）</span>
+      </label>
+      <div class="reminders" id="reminders"></div>
       <div class="settings__row">
         <button class="ghost-btn" id="btn-clear">清空对话</button>
         <button class="primary-btn" id="btn-save">保存</button>
@@ -52,6 +57,8 @@ const bannerEl = el<HTMLDivElement>('banner')
 const modelSel = el<HTMLSelectElement>('sel-model')
 const keyInput = el<HTMLInputElement>('inp-key')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
+const supervisionChk = el<HTMLInputElement>('chk-supervision')
+const remindersEl = el<HTMLDivElement>('reminders')
 
 let streaming = false
 let activeBubble: HTMLDivElement | null = null
@@ -131,6 +138,11 @@ window.api.chat.onDone((fullText) => {
   inputEl.focus()
 })
 
+window.api.chat.onProactive((message) => {
+  // 小狗主动说话（提醒 / 打卡）：作为一条助手消息出现。
+  addMessage('assistant', message)
+})
+
 window.api.chat.onError((message) => {
   if (activeBubble) {
     activeBubble.classList.remove('is-typing')
@@ -148,11 +160,41 @@ function toggleSettings(): void {
   settingsEl.hidden = !settingsEl.hidden
 }
 
+function renderReminders(reminders: ReminderView[]): void {
+  remindersEl.innerHTML = ''
+  for (const r of reminders) {
+    const row = document.createElement('div')
+    row.className = 'reminder'
+    row.dataset.id = r.id
+    row.innerHTML = `
+      <input type="checkbox" class="rm-on" ${r.enabled ? 'checked' : ''} />
+      <input type="time" class="rm-time" value="${r.time}" />
+      <input type="text" class="rm-msg" />
+    `
+    ;(row.querySelector('.rm-msg') as HTMLInputElement).value = r.message
+    remindersEl.appendChild(row)
+  }
+}
+
+function gatherReminders(): ReminderView[] {
+  return Array.from(remindersEl.querySelectorAll('.reminder')).map((node) => {
+    const row = node as HTMLDivElement
+    return {
+      id: row.dataset.id ?? '',
+      enabled: (row.querySelector('.rm-on') as HTMLInputElement).checked,
+      time: (row.querySelector('.rm-time') as HTMLInputElement).value || '21:00',
+      message: (row.querySelector('.rm-msg') as HTMLInputElement).value
+    }
+  })
+}
+
 async function loadConfig(): Promise<void> {
   const cfg = await window.api.config.get()
   if (MODELS.includes(cfg.model)) modelSel.value = cfg.model
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 MiniMax Key 才能聊天。'
+  supervisionChk.checked = cfg.supervisionEnabled
+  renderReminders(cfg.reminders)
   if (!cfg.hasApiKey) {
     showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 MiniMax Key。')
     settingsEl.hidden = false
@@ -160,7 +202,11 @@ async function loadConfig(): Promise<void> {
 }
 
 async function saveConfig(): Promise<void> {
-  const patch: Record<string, unknown> = { model: modelSel.value }
+  const patch: Record<string, unknown> = {
+    model: modelSel.value,
+    supervisionEnabled: supervisionChk.checked,
+    reminders: gatherReminders()
+  }
   if (keyInput.value.trim().length > 0) patch.apiKey = keyInput.value.trim()
   const cfg = await window.api.config.set(patch)
   keyInput.value = ''

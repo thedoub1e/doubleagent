@@ -6,6 +6,8 @@ interface PublicConfigView {
   hasApiKey: boolean
   baseUrl?: string
   systemPrompt: string
+  supervisionEnabled: boolean
+  reminders: ReminderView[]
 }
 
 interface DoubleAgentApi {
@@ -14,6 +16,7 @@ interface DoubleAgentApi {
   toggleChat: () => void
   openExternal: (url: string) => void
   onMood: (cb: (mood: string) => void) => void
+  onAttention: (cb: () => void) => void
   chat: {
     send: (text: string) => void
     abort: () => void
@@ -24,6 +27,7 @@ interface DoubleAgentApi {
     onDelta: (cb: (delta: string) => void) => void
     onDone: (cb: (fullText: string) => void) => void
     onError: (cb: (message: string) => void) => void
+    onProactive: (cb: (message: string) => void) => void
   }
   config: {
     get: () => Promise<PublicConfigView>
@@ -32,6 +36,12 @@ interface DoubleAgentApi {
 }
 
 declare global {
+  interface ReminderView {
+    id: string
+    time: string
+    message: string
+    enabled: boolean
+  }
   interface Window {
     api: DoubleAgentApi
   }

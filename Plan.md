@@ -80,7 +80,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [x] 聊天面板：类 Gemini 对话 UI（流式输出 + Markdown 渲染 + 外链系统浏览器打开）—— 独立聊天窗
 - [~] 模型层：集成 `@earendil-works/pi-ai`（主进程跑，key 不进渲染层）；MiniMax 已接，余源待补预设
 - [~] 对话记忆：本地全量历史持久化(history.json)已通；滚动摘要式长期记忆待补
-- [ ] 主动监督：轻量调度器 + macOS 系统通知 + 可配置提醒/打卡（如每晚关心、学习督促）；可选 pi-agent-core 注册"提醒/查询"安全工具
+- [x] 主动监督：轻量调度器(每30s查) + macOS 系统通知(Notification) + 可配置提醒/打卡(默认学习21:00/早睡23:30) + 触发时小狗蹦跳+主动说话进聊天；设置面板可开关/改时间文案
 - [x] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（已写进 config 默认，设置可改）
 - [~] 设置面板：模型选择 + key 表单(存主进程 userData,不回传明文)已通；6 源预设/baseURL 待补
 - [ ] 配置与密钥：本地存储、`.env.example`、`.gitignore` 屏蔽密钥（已建 .gitignore）

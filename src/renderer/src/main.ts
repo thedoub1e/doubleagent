@@ -17,6 +17,13 @@ window.api.onMood((mood) => {
   if ((VALID_MOODS as string[]).includes(mood)) dog.setMood(mood as Mood)
 })
 
+// 提醒触发：小狗蹦一下吸引注意。
+window.api.onAttention(() => {
+  dog.el.classList.remove('pet--attention')
+  void dog.el.offsetWidth // 强制重排以重启动画
+  dog.el.classList.add('pet--attention')
+})
+
 // ---- 点击穿透 ----
 // 窗口默认可交互。鼠标移动时用 elementFromPoint 看落点是否在小狗(.pet)上：
 // 在 → 可交互；落到透明背景 → 切点击穿透(ignore)。只在状态变化时发 IPC。

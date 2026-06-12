@@ -10,6 +10,9 @@ const api = {
   onMood: (cb: (mood: string) => void): void => {
     ipcRenderer.on('pet:mood', (_e, mood: string) => cb(mood))
   },
+  onAttention: (cb: () => void): void => {
+    ipcRenderer.on('pet:attention', () => cb())
+  },
 
   // —— 聊天 ——
   chat: {
@@ -29,6 +32,9 @@ const api = {
     },
     onError: (cb: (message: string) => void): void => {
       ipcRenderer.on('chat:error', (_e, message: string) => cb(message))
+    },
+    onProactive: (cb: (message: string) => void): void => {
+      ipcRenderer.on('chat:proactive', (_e, message: string) => cb(message))
     }
   },
 
@@ -40,12 +46,21 @@ const api = {
   }
 }
 
+export interface ReminderView {
+  id: string
+  time: string
+  message: string
+  enabled: boolean
+}
+
 export interface PublicConfigView {
   provider: string
   model: string
   hasApiKey: boolean
   baseUrl?: string
   systemPrompt: string
+  supervisionEnabled: boolean
+  reminders: ReminderView[]
 }
 
 contextBridge.exposeInMainWorld('api', api)

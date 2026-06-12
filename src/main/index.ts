@@ -1,12 +1,13 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, screen, shell } from 'electron'
 import { loadDotEnv } from './env'
-import { loadConfig, publicConfig, saveConfig } from './config'
+import { loadConfig, publicConfig, saveConfig, type Reminder } from './config'
+import { abortChat, runChat, type ChatMessage } from './chat'
+import { appendMessage, clearHistory, loadHistory } from './history'
+import { startScheduler } from './scheduler'
 
 // 启动即读项目 .env（让 MINIMAX_API_KEY 等可写进文件，不必走 UI）。
 loadDotEnv()
-import { abortChat, runChat, type ChatMessage } from './chat'
-import { appendMessage, clearHistory, loadHistory } from './history'
 
 const PET_WIDTH = 240
 const PET_HEIGHT = 300
@@ -127,6 +128,28 @@ function scheduleIdle(): void {
   idleTimer = setTimeout(() => setMood('idle'), REPLY_LINGER_MS)
 }
 
+function showChat(): void {
+  if (!chatWindow) createChatWindow()
+  if (!chatWindow) return
+  positionChatNearPet()
+  chatWindow.show()
+  chatWindow.focus()
+}
+
+// 主动监督：一条提醒触发 → 系统通知 + 小狗凑过来说话(写进历史并推聊天窗) + 情绪。
+function fireReminder(reminder: Reminder): void {
+  if (Notification.isSupported()) {
+    const n = new Notification({ title: '线条小狗 · 提醒', body: reminder.message })
+    n.on('click', () => showChat())
+    n.show()
+  }
+  appendMessage({ role: 'assistant', content: reminder.message })
+  chatWindow?.webContents.send('chat:proactive', reminder.message)
+  petWindow?.webContents.send('pet:attention')
+  setMood('reply')
+  scheduleIdle()
+}
+
 // ---- 桌宠窗口交互 IPC ----
 ipcMain.on('pet:set-ignore', (_e, ignore: boolean) => {
   petWindow?.setIgnoreMouseEvents(ignore, { forward: true })
@@ -188,6 +211,7 @@ ipcMain.on('chat:send', async (_e, text: string) => {
 app.whenReady().then(() => {
   createPetWindow()
   createChatWindow()
+  startScheduler(fireReminder)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createPetWindow()

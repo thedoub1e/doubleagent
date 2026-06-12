@@ -115,6 +115,55 @@ body {
 .field input:focus {
   border-color: var(--accent);
 }
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.check input {
+  accent-color: var(--accent);
+}
+.reminders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reminder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.reminder .rm-on {
+  accent-color: var(--accent);
+  flex: none;
+}
+.reminder .rm-time {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  flex: none;
+  width: 84px;
+}
+.reminder .rm-msg {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.reminder .rm-time:focus,
+.reminder .rm-msg:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .settings__row {
   display: flex;
   justify-content: space-between;
