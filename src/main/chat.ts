@@ -1,4 +1,5 @@
 import type { AppConfig } from './config'
+import { findPreset } from '../shared/providers'
 
 // 历史里只存纯文本（便于持久化 / 渲染）；调用模型时再转成 pi-ai 的 Context。
 export interface ChatMessage {
@@ -34,9 +35,36 @@ export async function runChat(
 
   const pi = await import('@earendil-works/pi-ai')
 
-  let model: ReturnType<typeof pi.getModel>
+  const preset = findPreset(config.provider)
+  if (!preset) {
+    handlers.onError(`未知的模型源：${config.provider}`)
+    return
+  }
+
+  let model: unknown
   try {
-    model = pi.getModel(config.provider as never, config.model as never)
+    if (preset.kind === 'pi') {
+      model = pi.getModel(preset.piProvider as never, config.model as never)
+    } else {
+      // 自定义 OpenAI 兼容源（通义 / Gemini 反代）：自建 Model，baseUrl 写在 model 上。
+      const baseUrl = (config.baseUrl ?? '').length > 0 ? config.baseUrl : preset.defaultBaseUrl
+      if (!baseUrl) {
+        handlers.onError('这个源需要在设置里填 baseURL（接口地址）。')
+        return
+      }
+      model = {
+        id: config.model,
+        name: config.model,
+        api: 'openai-completions',
+        provider: preset.id,
+        baseUrl,
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000,
+        maxTokens: 8192
+      }
+    }
   } catch (e) {
     handlers.onError(`模型不可用：${(e as Error).message}`)
     return
@@ -54,9 +82,8 @@ export async function runChat(
   let full = ''
   try {
     handlers.onStart()
-    const s = pi.stream(model, context as never, {
+    const s = pi.stream(model as never, context as never, {
       apiKey: config.apiKey,
-      baseUrl: config.baseUrl,
       signal: controller.signal
     } as never)
 

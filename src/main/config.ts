@@ -74,9 +74,10 @@ export function loadConfig(): AppConfig {
   } catch {
     result = { ...DEFAULTS }
   }
-  // 回退：UI 没存 key 时，用项目 .env 的 MINIMAX_API_KEY（由 main 启动时 loadDotEnv 注入）。
-  if (result.apiKey.length === 0 && (process.env.MINIMAX_API_KEY ?? '').length > 0) {
-    result = { ...result, apiKey: process.env.MINIMAX_API_KEY as string }
+  // 回退：当前源是 MiniMax 且 UI 没存 key 时，用项目 .env 的 MINIMAX_API_KEY（main 启动 loadDotEnv 注入）。
+  const envKey = process.env.MINIMAX_API_KEY ?? ''
+  if (result.provider.startsWith('minimax') && result.apiKey.length === 0 && envKey.length > 0) {
+    result = { ...result, apiKey: envKey }
   }
   cache = result
   return result

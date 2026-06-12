@@ -82,7 +82,8 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [~] 对话记忆：本地全量历史持久化(history.json)已通；滚动摘要式长期记忆待补
 - [x] 主动监督：轻量调度器(每30s查) + macOS 系统通知(Notification) + 可配置提醒/打卡(默认学习21:00/早睡23:30) + 触发时小狗蹦跳+主动说话进聊天；设置面板可开关/改时间文案
 - [x] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（已写进 config 默认，设置可改）
-- [~] 设置面板：模型选择 + key 表单(存主进程 userData,不回传明文)已通；6 源预设/baseURL 待补
+- [x] 设置面板：模型源下拉(6源:MiniMax国内/国际·DeepSeek·GLM国内/国际·Kimi国内/国际·通义·Gemini反代) + 模型下拉(随源刷新) + 自定义源的baseURL + key 表单(存主进程,不回传明文)。native走pi provider,通义/Gemini反代走自建OpenAI兼容Model
+- 注：当前单 key 字段，切源需重填该源 key（per-provider key 留作后续）
 - [ ] 配置与密钥：本地存储、`.env.example`、`.gitignore` 屏蔽密钥（已建 .gitignore）
 - [ ] 保姆级安装：`安装.command` / `启动小狗.command` 脚本 + 自启动（可选登录项）
 - [ ] 图文教程：拿 API Key、安装、首次启动、常见报错 FAQ

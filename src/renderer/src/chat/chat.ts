@@ -1,7 +1,6 @@
 import './chat.css'
 import { renderMarkdown } from './markdown'
-
-const MODELS = ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed']
+import { PROVIDER_PRESETS, findPreset } from '../../../shared/providers'
 
 const root = document.getElementById('chat-root')
 if (!root) throw new Error('chat-root not found')
@@ -18,11 +17,19 @@ root.innerHTML = `
 
     <div class="settings" id="settings" hidden>
       <label class="field">
-        <span>模型</span>
-        <select id="sel-model">${MODELS.map((m) => `<option value="${m}">${m}</option>`).join('')}</select>
+        <span>模型源</span>
+        <select id="sel-provider">${PROVIDER_PRESETS.map((p) => `<option value="${p.id}">${p.label}</option>`).join('')}</select>
       </label>
       <label class="field">
-        <span>MiniMax API Key</span>
+        <span>模型</span>
+        <select id="sel-model"></select>
+      </label>
+      <label class="field" id="field-baseurl" hidden>
+        <span>接口地址 baseURL</span>
+        <input id="inp-baseurl" type="text" placeholder="https://..." autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>API Key</span>
         <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
       </label>
       <label class="check">
@@ -58,11 +65,29 @@ const inputEl = el<HTMLTextAreaElement>('inp')
 const sendBtn = el<HTMLButtonElement>('btn-send')
 const settingsEl = el<HTMLDivElement>('settings')
 const bannerEl = el<HTMLDivElement>('banner')
+const providerSel = el<HTMLSelectElement>('sel-provider')
 const modelSel = el<HTMLSelectElement>('sel-model')
+const baseUrlField = el<HTMLLabelElement>('field-baseurl')
+const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
 const supervisionChk = el<HTMLInputElement>('chk-supervision')
 const remindersEl = el<HTMLDivElement>('reminders')
+
+// 切源时：刷新模型下拉 + 按是否自定义源显示 baseURL 输入。
+function applyProvider(providerId: string, selectedModel?: string, baseUrl?: string): void {
+  const preset = findPreset(providerId) ?? PROVIDER_PRESETS[0]
+  modelSel.innerHTML = preset.models.map((m) => `<option value="${m}">${m}</option>`).join('')
+  if (selectedModel && preset.models.includes(selectedModel)) modelSel.value = selectedModel
+  const isCustom = preset.kind === 'openai-compatible'
+  baseUrlField.hidden = !isCustom
+  if (isCustom) {
+    baseUrlInput.placeholder = preset.defaultBaseUrl || 'https://...'
+    baseUrlInput.value = baseUrl ?? ''
+  }
+}
+
+providerSel.addEventListener('change', () => applyProvider(providerSel.value))
 
 let streaming = false
 let activeBubble: HTMLDivElement | null = null
@@ -194,20 +219,23 @@ function gatherReminders(): ReminderView[] {
 
 async function loadConfig(): Promise<void> {
   const cfg = await window.api.config.get()
-  if (MODELS.includes(cfg.model)) modelSel.value = cfg.model
+  if (findPreset(cfg.provider)) providerSel.value = cfg.provider
+  applyProvider(providerSel.value, cfg.model, cfg.baseUrl)
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
-  settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 MiniMax Key 才能聊天。'
+  settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
   supervisionChk.checked = cfg.supervisionEnabled
   renderReminders(cfg.reminders)
   if (!cfg.hasApiKey) {
-    showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 MiniMax Key。')
+    showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 Key。')
     settingsEl.hidden = false
   }
 }
 
 async function saveConfig(): Promise<void> {
   const patch: Record<string, unknown> = {
+    provider: providerSel.value,
     model: modelSel.value,
+    baseUrl: baseUrlInput.value.trim(),
     supervisionEnabled: supervisionChk.checked,
     reminders: gatherReminders()
   }
