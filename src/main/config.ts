@@ -21,7 +21,9 @@ export interface AppConfig {
 }
 
 const DEFAULTS: AppConfig = {
-  provider: 'minimax',
+  // 国内站 provider（端点 api.minimaxi.com/anthropic）。用户的 key 是国内站申请的，
+  // 实测国际站 minimax(api.minimax.io) 会 401；minimax-cn 流式/非流式均通过。
+  provider: 'minimax-cn',
   model: 'MiniMax-M3',
   apiKey: '',
   systemPrompt: DEFAULT_SYSTEM_PROMPT
@@ -51,6 +53,10 @@ export function loadConfig(): AppConfig {
       : { ...DEFAULTS }
   } catch {
     result = { ...DEFAULTS }
+  }
+  // 回退：UI 没存 key 时，用项目 .env 的 MINIMAX_API_KEY（由 main 启动时 loadDotEnv 注入）。
+  if (result.apiKey.length === 0 && (process.env.MINIMAX_API_KEY ?? '').length > 0) {
+    result = { ...result, apiKey: process.env.MINIMAX_API_KEY as string }
   }
   cache = result
   return result

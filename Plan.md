@@ -4,9 +4,8 @@ _单一事实来源（Source of truth）。始终保持本文件最新。_
 _Last updated: 2026-06-12_
 
 ## Current Objective
-✅ 聊天 MVP 已接好（pi-ai 在主进程流式 → IPC 推聊天窗；独立聊天窗+设置+本地历史；小狗情绪
-随对话状态切换）。**待用户用真 MiniMax key 端到端验证**（无 key 无法自测真实调用）。
-下一步据实测结果修 bug，然后补 Markdown 渲染 / 多源预设 / 主动监督。
+✅ 聊天**端到端跑通**（真 key 实测：pi-ai `minimax-cn`/MiniMax-M3 流式 + 非流式均 200，陪伴
+人设回复正常）。下一步：补 Markdown 渲染 / 多源预设 / 主动监督；并让伴侣在国外实测一次。
 
 ## 产品用意（核心 — 用户 2026-06-12 补充）
 交付对象是**在国外留学的伴侣**，本质是一只「数字陪伴者」。要实现四大功能：
@@ -91,7 +90,8 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [ ] 在自己机器上完整演练「对方视角」：从 0 拉仓库到能聊天
 
 ## In Progress
-- [ ] 用真 MiniMax key 端到端验证流式对话（确认 anthropic-messages 端点鉴权 / 是否需 GroupId）
+- [ ] 让伴侣在国外实测一次（确认 api.minimaxi.com 国内站端点从境外可达）
+- [ ] 补 Markdown 渲染 / 多源预设 / 主动监督
 
 ## Done
 - [x] 调研可二开/参考的开源桌宠项目（Open-LLM-VTuber 等 + 用户指定的 Clarvis）
@@ -99,7 +99,8 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [x] 建 doubleagent/ 子文件夹 + git init + 起草 Principal/Plan/Errors/AOL + .gitignore
 - [x] **定稿四项 Open Question**：Electron 单栈 / 自绘+可上传形象 / MVP+对话记忆 / 六源含 MiniMax 默认留空
 - [x] **Electron 单栈骨架**：透明置顶 + 可拖动 + 点击穿透(IPC 切 ignoreMouseEvents) + 三态占位线条小狗；electron-vite 5 + vite 6，typecheck/build/boot 全过
-- [x] **聊天 MVP 接线**：pi-ai 主进程流式 + IPC + 独立聊天窗(类 Gemini 气泡/流式/设置抽屉) + 本地历史持久化 + 小狗情绪联动 + 陪伴人设；typecheck/build/boot 全过（真实调用待 key 验证）
+- [x] **聊天 MVP 接线**：pi-ai 主进程流式 + IPC + 独立聊天窗(类 Gemini 气泡/流式/设置抽屉) + 本地历史持久化 + 小狗情绪联动 + 陪伴人设
+- [x] **MiniMax 端到端打通**：真 key 实测定位 401=国内站 key 走错国际端点；改 provider→`minimax-cn`(api.minimaxi.com)；流式/非流式均 200，人设回复正常。.env 填 key 通道可用
 
 ## Open Questions / Decisions
 - ~~架构底座~~ → ✅ 采纳 Electron 单栈 + 从源码运行 + 不 fork Clarvis。

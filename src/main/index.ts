@@ -1,6 +1,10 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { loadDotEnv } from './env'
 import { loadConfig, publicConfig, saveConfig } from './config'
+
+// 启动即读项目 .env（让 MINIMAX_API_KEY 等可写进文件，不必走 UI）。
+loadDotEnv()
 import { abortChat, runChat, type ChatMessage } from './chat'
 import { appendMessage, clearHistory, loadHistory } from './history'
 
