@@ -2,8 +2,9 @@ import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
 import { loadDotEnv } from './env'
 import { loadConfig, publicConfig, saveConfig, type Reminder } from './config'
-import { abortChat, runChat, type ChatMessage } from './chat'
+import { abortChat, runChat, summarizeConversation, type ChatMessage } from './chat'
 import { appendMessage, clearHistory, loadHistory } from './history'
+import { clearMemory, loadMemory, saveMemory } from './memory'
 import { startScheduler } from './scheduler'
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
 
@@ -136,6 +137,20 @@ function scheduleIdle(): void {
   idleTimer = setTimeout(() => setMood('idle'), REPLY_LINGER_MS)
 }
 
+// 历史超阈值时，把较旧的部分滚动压缩进长期记忆摘要（保留最近若干条原文）。
+const SUMMARIZE_THRESHOLD = 24
+const KEEP_RECENT = 10
+async function maybeSummarize(): Promise<void> {
+  const history = loadHistory()
+  const memory = loadMemory()
+  if (history.length - memory.summarizedUpTo <= SUMMARIZE_THRESHOLD) return
+  const upTo = Math.max(0, history.length - KEEP_RECENT)
+  const slice = history.slice(memory.summarizedUpTo, upTo)
+  if (slice.length === 0) return
+  const summary = await summarizeConversation(slice, memory.summary, loadConfig())
+  if (summary) saveMemory({ summary, summarizedUpTo: upTo })
+}
+
 function showChat(): void {
   if (!chatWindow) createChatWindow()
   if (!chatWindow) return
@@ -184,7 +199,10 @@ ipcMain.handle('config:set', (_e, patch: Record<string, unknown>) => {
   return publicConfig()
 })
 ipcMain.handle('chat:history', () => loadHistory())
-ipcMain.on('chat:clear', () => clearHistory())
+ipcMain.on('chat:clear', () => {
+  clearHistory()
+  clearMemory()
+})
 
 // ---- 自定义形象 ----
 ipcMain.handle('pet:pick-image', async () => {
@@ -219,8 +237,15 @@ ipcMain.on('chat:send', async (_e, text: string) => {
     chatWindow?.webContents.send(channel, payload)
   }
 
+  // 注入长期记忆摘要到人设。
+  const base = loadConfig()
+  const memory = loadMemory()
+  const systemPrompt = memory.summary.length > 0
+    ? `${base.systemPrompt}\n\n【你对用户的长期记忆】\n${memory.summary}`
+    : base.systemPrompt
+
   setMood('thinking')
-  await runChat(history, loadConfig(), {
+  await runChat(history, { ...base, systemPrompt }, {
     onStart: () => send('chat:start'),
     onDelta: (delta) => send('chat:delta', delta),
     onDone: (fullText) => {
@@ -228,6 +253,7 @@ ipcMain.on('chat:send', async (_e, text: string) => {
       send('chat:done', fullText)
       setMood('reply')
       scheduleIdle()
+      void maybeSummarize()
     },
     onError: (message) => {
       send('chat:error', message)

@@ -80,7 +80,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [x] 形象自定义：设置面板选图片/GIF→存 userData→data URL 推渲染层<img>(GIF自带动画)；可恢复默认自绘狗。即「现成线条小狗素材」的版权干净落地（用户自备图）
 - [x] 聊天面板：类 Gemini 对话 UI（流式输出 + Markdown 渲染 + 外链系统浏览器打开）—— 独立聊天窗
 - [~] 模型层：集成 `@earendil-works/pi-ai`（主进程跑，key 不进渲染层）；MiniMax 已接，余源待补预设
-- [~] 对话记忆：本地全量历史持久化(history.json)已通；滚动摘要式长期记忆待补
+- [x] 对话记忆：本地全量历史持久化 + 滚动摘要式长期记忆(memory.json,超24条把旧的压缩进摘要注入人设,保留最近10条原文;清空对话同时清记忆)
 - [x] 主动监督：轻量调度器(每30s查) + macOS 系统通知(Notification) + 可配置提醒/打卡(默认学习21:00/早睡23:30) + 触发时小狗蹦跳+主动说话进聊天；设置面板可开关/改时间文案
 - [x] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（已写进 config 默认，设置可改）
 - [x] 设置面板：模型源下拉(6源:MiniMax国内/国际·DeepSeek·GLM国内/国际·Kimi国内/国际·通义·Gemini反代) + 模型下拉(随源刷新) + 自定义源的baseURL + key 表单(存主进程,不回传明文)。native走pi provider,通义/Gemini反代走自建OpenAI兼容Model
