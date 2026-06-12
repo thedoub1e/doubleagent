@@ -1,0 +1,22 @@
+import { resolve } from 'node:path'
+import { defineConfig } from 'electron-vite'
+
+// 单栈：main(主进程) / preload(桥) / renderer(桌宠 UI) 都由 electron-vite + Vite 构建。
+export default defineConfig({
+  main: {
+    build: {
+      rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } }
+    }
+  },
+  preload: {
+    build: {
+      rollupOptions: { input: { index: resolve(__dirname, 'src/preload/index.ts') } }
+    }
+  },
+  renderer: {
+    root: 'src/renderer',
+    build: {
+      rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } }
+    }
+  }
+})

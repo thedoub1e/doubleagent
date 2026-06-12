@@ -4,8 +4,16 @@ _单一事实来源（Source of truth）。始终保持本文件最新。_
 _Last updated: 2026-06-12_
 
 ## Current Objective
-治理初始化 + 架构方案**已定稿、四项 Open Question 全部拍板**。下一步进入实现：先搭
-Electron 单栈骨架（透明置顶桌宠窗口）。
+✅ Electron 单栈骨架已跑通（透明置顶 + 可拖动 + 点击穿透 + 三态占位，build/boot 通过）。
+下一步：集成 `@earendil-works/pi-ai` 模型层 + 聊天面板（先单源跑通流式对话）。
+
+## 产品用意（核心 — 用户 2026-06-12 补充）
+交付对象是**在国外留学的伴侣**，本质是一只「数字陪伴者」。要实现四大功能：
+- 🫂 **陪伴**：常驻桌面 + 情绪表情，时差/异国里的"在场感"，缓解孤独。
+- ✅ **监督**：学习/生活督促——提醒、打卡、关心型 nudge，帮她保持节奏。
+- 💬 **聊天**：类 Gemini 流式对话 + 对话记忆，越聊越懂她。
+- 💡 **解惑**：学业/生活/情绪 答疑解惑，随手点开就能问。
+人设默认 = "留学伴侣的陪伴小狗"（知道她在国外、会主动关心；可在设置里改）。
 
 ## 已定稿架构决策（用户已确认 2026-06-12）
 
@@ -26,11 +34,25 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - ⚠️ **版权风控**：因打包第三方版权素材 → **仓库设为 private**（个人赠予，不公开
   再分发）；素材仅 personal use。
 
-**模型层**：OpenAI 兼容 `/chat/completions` 单一抽象，配置 = `baseURL + apiKey + model`。
-内置预设（全部）：**DeepSeek、通义千问(DashScope 兼容)、智谱 GLM、Kimi(Moonshot)、
-MiniMax、Gemini 反代(OpenAI 格式)**。默认**留空让用户选**，设置面板粘贴即用，存本地 userData。
+**模型层（重评估后改用 Pi）**：采用 **`@earendil-works/pi-ai`（MIT，TS/Node）** 作为统一
+模型层，**不再手写** OpenAI 兼容客户端。理由：原生支持 DeepSeek/MiniMax/智谱GLM(ZAI)/Kimi，
+通义与 Gemini反代 走「Any OpenAI-compatible API」自定义 baseURL；白送 流式 + 工具调用 +
+成本统计 + 上下文序列化/持久化。六源全覆盖，配置 = `baseURL + apiKey + model`，默认留空让
+用户选，存本地 userData。
+- ⚠️ **依赖代价**：pi-ai 打包多家 SDK（含 `@anthropic-ai/sdk`/`openai`/`@google/genai`/
+  `mistral`/`bedrock`），比手写单文件客户端重 → 触「依赖少可审计」红线，但 MIT 可审计、
+  省造轮子，功能优先下接受（用户确认）。
+- ⚠️ **红线守法**：上述 SDK 仅作 node_modules 依赖存在；**运行时永远只配国产源/Gemini 反代，
+  绝不调 OpenAI/Anthropic provider** → 守住「不连 OpenAI/Anthropic」红线。
+- **可选** `@earendil-works/pi-agent-core`：agent 循环 + 工具调用，仅注册安全工具（提醒/查询），
+  **绝不引** file/bash 工具与 `pi-coding-agent`/`pi-tui`。
 
-**首版范围**：纯文字聊天 MVP **+ 对话记忆**（本地持久化多轮历史 / 长期记忆，仍纯文字）。
+**记忆层（学 Clarvis 但不破单栈）**：Clarvis 记忆=Hindsight+Cognee 但**是 Python**（其三栈重的
+根源）→ **不直接搬**。改用 TS 轻量实现：pi-ai 自带 context 序列化/持久化 + 自建滚动摘要式长期
+记忆，拿到 Clarvis 级"越聊越懂"效果而不引 Python。
+
+**首版范围**：纯文字聊天 MVP **+ 对话记忆**（本地持久化多轮历史 / 长期记忆，仍纯文字）
+**+ 主动监督**（小狗定时主动弹提醒/打卡，如每晚「今天学了吗」+ macOS 系统通知）。
 语音(TTS/ASR) 留到后续迭代。
 
 **保姆级安装（核心难点）**：
@@ -42,12 +64,14 @@ MiniMax、Gemini 反代(OpenAI 格式)**。默认**留空让用户选**，设置
   与教程 FAQ。
 
 ## TODO
-- [ ] 搭骨架：Electron + Vite + TS 项目脚手架（透明置顶桌宠窗口 + 点击穿透 + 可拖动）
-- [ ] 线条小狗形象：从免费无水印合集(爱给网等)挑选素材，映射待机/思考/回复三态；自绘风格作 fallback
+- [ ] 线条小狗形象：从免费无水印合集(爱给网等)挑选素材，映射待机/思考/回复三态；自绘风格作 fallback（当前是自绘占位）
 - [ ] 形象自定义：支持用户上传图片替换默认小狗（本地 userData，不进 git）
 - [ ] 聊天面板：类 Gemini 对话 UI（流式输出、Markdown 渲染）
-- [ ] 对话记忆：本地持久化多轮历史 / 长期记忆（纯文字）
-- [ ] 模型层：OpenAI 兼容 client + 6 源预设（DeepSeek/通义/GLM/Kimi/MiniMax/Gemini反代）+ 设置面板（baseURL/key/model）
+- [ ] 模型层：集成 `@earendil-works/pi-ai`，跑通 DeepSeek/MiniMax/GLM/Kimi 原生 + 通义/Gemini反代 自定义 baseURL
+- [ ] 对话记忆：pi-ai context 持久化 + 自建 TS 滚动摘要式长期记忆（学 Clarvis 理念，不引 Python）
+- [ ] 主动监督：轻量调度器 + macOS 系统通知 + 可配置提醒/打卡（如每晚关心、学习督促）；可选 pi-agent-core 注册"提醒/查询"安全工具
+- [ ] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（知道她在国外、会主动关心；设置可改）
+- [ ] 设置面板：6 源预设（DeepSeek/通义/GLM/Kimi/MiniMax/Gemini反代）+ baseURL/key/model 表单，存本地 userData
 - [ ] 配置与密钥：本地存储、`.env.example`、`.gitignore` 屏蔽密钥（已建 .gitignore）
 - [ ] 保姆级安装：`安装.command` / `启动小狗.command` 脚本 + 自启动（可选登录项）
 - [ ] 图文教程：拿 API Key、安装、首次启动、常见报错 FAQ
@@ -55,20 +79,23 @@ MiniMax、Gemini 反代(OpenAI 格式)**。默认**留空让用户选**，设置
 - [ ] 在自己机器上完整演练「对方视角」：从 0 拉仓库到能聊天
 
 ## In Progress
-- [ ] （待开始）Electron 单栈骨架
+- [ ] 模型层 + 聊天面板（下一步）
 
 ## Done
 - [x] 调研可二开/参考的开源桌宠项目（Open-LLM-VTuber 等 + 用户指定的 Clarvis）
 - [x] 确认四项关键决策：子文件夹 doubleagent/ / 参考 Clarvis / GitHub pull 分发 / 不付费签名
 - [x] 建 doubleagent/ 子文件夹 + git init + 起草 Principal/Plan/Errors/AOL + .gitignore
 - [x] **定稿四项 Open Question**：Electron 单栈 / 自绘+可上传形象 / MVP+对话记忆 / 六源含 MiniMax 默认留空
+- [x] **Electron 单栈骨架**：透明置顶 + 可拖动 + 点击穿透(IPC 切 ignoreMouseEvents) + 三态占位线条小狗；electron-vite 5 + vite 6，typecheck/build/boot 全过
 
 ## Open Questions / Decisions
 - ~~架构底座~~ → ✅ 采纳 Electron 单栈 + 从源码运行 + 不 fork Clarvis。
 - ~~形象来源~~ → ✅ 自绘扁平线条小狗为默认 + 支持用户上传图片自定义（不商用）。
 - ~~首版范围~~ → ✅ 纯文字聊天 MVP + 对话记忆；语音留后续。
 - ~~默认模型源~~ → ✅ 六源全做预设（含 MiniMax），默认留空让用户选。
+- ~~pi-ai 依赖取舍~~ → ✅ **采用 pi-ai（功能优先）**，接受依赖变重；运行时只配国产源/Gemini反代，绝不调 OpenAI/Anthropic。可按需用 pi-agent-core（仅安全工具）。
 - （新）对话记忆的形态：先做「本地会话历史 + 可选系统人设」，长期记忆（向量/摘要）作为后续增强？— 待实现阶段细化
+- ~~「监督」首版形态~~ → ✅ **主动定时提醒/打卡 + macOS 系统通知**（首版就做，加轻量调度器）。
 
 ## Requirement Change Log
 - 2026-06-12: 项目立项。AI 桌宠（线条小狗）+ 类 Gemini 聊天，macOS，赠予电脑小白伴侣。
@@ -82,3 +109,13 @@ MiniMax、Gemini 反代(OpenAI 格式)**。默认**留空让用户选**，设置
   是 moonlab_studio 版权 IP、无开源授权，仅免费合集(爱给网/简书/Sigstick)可个人非商用。
   决定：默认用免费无水印素材映射三态 + 保留上传自定义 + 自绘作 fallback；**仓库设 private**
   规避版权再分发风险。
+- 2026-06-12: 建私有仓库 github.com/thedoub1e/doubleagent，治理基线已 push main。
+- 2026-06-12: **产品用意补充**——交付对象是国外留学的伴侣，定位「数字陪伴者」，须实现
+  陪伴/监督/聊天/解惑四大功能；默认人设=留学伴侣陪伴小狗。
+- 2026-06-12: **拍板**——(1)「监督」首版即做**主动定时提醒/打卡 + macOS 系统通知**(加轻量
+  调度器)；(2) 四大功能用意**写进 Principal 的 End Goal**(已解锁→改→重新上锁)。
+- 2026-06-12: **功能优先·重评估模型层**——用户要求重新评估 piagent。查实 Pi(`@earendil-works/
+  pi-ai`,MIT,TS/Node) 与 Electron 单栈兼容，原生支持 DeepSeek/MiniMax/GLM/Kimi + 任意 OpenAI
+  兼容(通义/Gemini反代)，白送流式+工具调用+成本统计+上下文持久化。**决定改用 pi-ai 作模型层**，
+  弃手写客户端；记忆学 Clarvis(Hindsight/Cognee 是 Python 故不搬)改 TS 轻量实现；不引 pi-tui/
+  pi-coding-agent 的 bash/file 工具。✅ **用户确认：采用 pi-ai，功能优先，接受依赖变重。**

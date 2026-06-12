@@ -1,0 +1,22 @@
+{
+  "name": "doubleagent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "线条小狗 AI 桌宠 — 送给留学伴侣的数字陪伴者 (macOS)",
+  "author": "thedoub1e",
+  "license": "MIT",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite build && electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^34.2.0",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}
