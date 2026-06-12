@@ -85,8 +85,8 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [x] 设置面板：模型源下拉(6源:MiniMax国内/国际·DeepSeek·GLM国内/国际·Kimi国内/国际·通义·Gemini反代) + 模型下拉(随源刷新) + 自定义源的baseURL + key 表单(存主进程,不回传明文)。native走pi provider,通义/Gemini反代走自建OpenAI兼容Model
 - 注：当前单 key 字段，切源需重填该源 key（per-provider key 留作后续）
 - [ ] 配置与密钥：本地存储、`.env.example`、`.gitignore` 屏蔽密钥（已建 .gitignore）
-- [ ] 保姆级安装：`安装.command` / `启动小狗.command` 脚本 + 自启动（可选登录项）
-- [ ] 图文教程：拿 API Key、安装、首次启动、常见报错 FAQ
+- [x] 保姆级安装：`安装.command`(检测Node→开官网/装依赖走npmmirror→补Electron运行时) + `启动小狗.command`(校验后 npm start)；可执行+语法校验过。自启动登录项留后续
+- [x] 图文教程：README.md（安装三步/拿MiniMax key/玩法/FAQ含401站点坑/Gatekeeper右键打开/隐私）；截图待补
 - [ ] 测试：模型层单测、安装脚本在干净 Mac 上的演练、聊天 E2E
 - [ ] 在自己机器上完整演练「对方视角」：从 0 拉仓库到能聊天
 
