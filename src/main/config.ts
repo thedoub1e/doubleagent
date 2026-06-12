@@ -27,6 +27,7 @@ export interface AppConfig {
   systemPrompt: string
   supervisionEnabled: boolean
   reminders: Reminder[]
+  petImagePath?: string
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -54,6 +55,7 @@ export interface PublicConfig {
   systemPrompt: string
   supervisionEnabled: boolean
   reminders: Reminder[]
+  hasPetImage: boolean
 }
 
 function configPath(): string {
@@ -96,6 +98,7 @@ export function publicConfig(): PublicConfig {
     baseUrl: c.baseUrl,
     systemPrompt: c.systemPrompt,
     supervisionEnabled: c.supervisionEnabled,
-    reminders: c.reminders
+    reminders: c.reminders,
+    hasPetImage: (c.petImagePath ?? '').length > 0
   }
 }

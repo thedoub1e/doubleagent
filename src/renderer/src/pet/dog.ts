@@ -44,6 +44,7 @@ export interface Dog {
   el: HTMLDivElement
   chatButton: HTMLButtonElement
   setMood: (mood: Mood) => void
+  setImage: (dataUrl: string | null) => void
 }
 
 export function createDog(): Dog {
@@ -59,13 +60,33 @@ export function createDog(): Dog {
   const stage = el.querySelector('.pet__stage') as HTMLDivElement
   const caption = el.querySelector('.pet__caption') as HTMLDivElement
 
+  let currentMood: Mood = 'idle'
+  let customImage = false
+
   const setMood = (mood: Mood): void => {
+    currentMood = mood
+    caption.textContent = CAPTION[mood]
+    stage.dataset.mood = mood
+    if (customImage) return
     // 重建整段 SVG：经 HTML 解析器路径，<circle>/<path> 才会落到正确的 SVG 命名空间。
     // （直接对 SVG <g> 设 innerHTML 会落到 HTML 命名空间而不渲染。）
     stage.innerHTML = dogSvg(FACE[mood])
-    caption.textContent = CAPTION[mood]
-    stage.dataset.mood = mood
   }
 
-  return { el, chatButton, setMood }
+  // 自定义形象：有 dataUrl 用 <img>(GIF 自带动画)；null 则回到自绘三态狗。
+  const setImage = (dataUrl: string | null): void => {
+    if (dataUrl) {
+      customImage = true
+      const img = document.createElement('img')
+      img.className = 'pet__img'
+      img.src = dataUrl
+      img.alt = '桌宠'
+      stage.replaceChildren(img)
+    } else {
+      customImage = false
+      setMood(currentMood)
+    }
+  }
+
+  return { el, chatButton, setMood, setImage }
 }

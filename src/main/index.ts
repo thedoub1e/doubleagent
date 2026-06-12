@@ -1,10 +1,11 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, Notification, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
 import { loadDotEnv } from './env'
 import { loadConfig, publicConfig, saveConfig, type Reminder } from './config'
 import { abortChat, runChat, type ChatMessage } from './chat'
 import { appendMessage, clearHistory, loadHistory } from './history'
 import { startScheduler } from './scheduler'
+import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
 
 // 启动即读项目 .env（让 MINIMAX_API_KEY 等可写进文件，不必走 UI）。
 loadDotEnv()
@@ -58,9 +59,16 @@ function createPetWindow(): void {
   petWindow.setIgnoreMouseEvents(false)
 
   loadRenderer(petWindow, 'index')
+  // 渲染层就绪后推送自定义形象（若有）。
+  petWindow.webContents.on('did-finish-load', () => sendPetImage())
   petWindow.on('closed', () => {
     petWindow = null
   })
+}
+
+function sendPetImage(): void {
+  const url = petImageDataUrl(loadConfig().petImagePath)
+  petWindow?.webContents.send('pet:image', url)
 }
 
 function createChatWindow(): void {
@@ -177,6 +185,26 @@ ipcMain.handle('config:set', (_e, patch: Record<string, unknown>) => {
 })
 ipcMain.handle('chat:history', () => loadHistory())
 ipcMain.on('chat:clear', () => clearHistory())
+
+// ---- 自定义形象 ----
+ipcMain.handle('pet:pick-image', async () => {
+  const res = await dialog.showOpenDialog({
+    title: '选一张小狗图片 / GIF',
+    properties: ['openFile'],
+    filters: [{ name: '图片', extensions: PET_IMAGE_EXTENSIONS }]
+  })
+  const picked = res.canceled ? undefined : res.filePaths[0]
+  if (picked) {
+    saveConfig({ petImagePath: storePetImage(picked) })
+    sendPetImage()
+  }
+  return publicConfig()
+})
+ipcMain.handle('pet:reset-image', () => {
+  saveConfig({ petImagePath: '' })
+  sendPetImage()
+  return publicConfig()
+})
 ipcMain.on('chat:abort', () => abortChat())
 
 // ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----

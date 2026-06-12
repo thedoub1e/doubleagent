@@ -13,6 +13,11 @@ const api = {
   onAttention: (cb: () => void): void => {
     ipcRenderer.on('pet:attention', () => cb())
   },
+  onPetImage: (cb: (dataUrl: string | null) => void): void => {
+    ipcRenderer.on('pet:image', (_e, dataUrl: string | null) => cb(dataUrl))
+  },
+  pickPetImage: (): Promise<PublicConfigView> => ipcRenderer.invoke('pet:pick-image'),
+  resetPetImage: (): Promise<PublicConfigView> => ipcRenderer.invoke('pet:reset-image'),
 
   // —— 聊天 ——
   chat: {
@@ -61,6 +66,7 @@ export interface PublicConfigView {
   systemPrompt: string
   supervisionEnabled: boolean
   reminders: ReminderView[]
+  hasPetImage: boolean
 }
 
 contextBridge.exposeInMainWorld('api', api)

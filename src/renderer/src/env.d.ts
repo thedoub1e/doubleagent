@@ -8,6 +8,7 @@ interface PublicConfigView {
   systemPrompt: string
   supervisionEnabled: boolean
   reminders: ReminderView[]
+  hasPetImage: boolean
 }
 
 interface DoubleAgentApi {
@@ -17,6 +18,9 @@ interface DoubleAgentApi {
   openExternal: (url: string) => void
   onMood: (cb: (mood: string) => void) => void
   onAttention: (cb: () => void) => void
+  onPetImage: (cb: (dataUrl: string | null) => void) => void
+  pickPetImage: () => Promise<PublicConfigView>
+  resetPetImage: () => Promise<PublicConfigView>
   chat: {
     send: (text: string) => void
     abort: () => void

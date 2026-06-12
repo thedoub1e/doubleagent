@@ -81,6 +81,15 @@ body {
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
 }
 
+.pet__img {
+  width: 168px;
+  max-height: 188px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
 /* 聊天气泡按钮：悬停才浮现，不挡平时桌面。 */
 .pet__chat {
   position: absolute;

@@ -31,6 +31,10 @@ root.innerHTML = `
       </label>
       <div class="reminders" id="reminders"></div>
       <div class="settings__row">
+        <button class="ghost-btn" id="btn-pick-image">选形象图 / GIF</button>
+        <button class="ghost-btn" id="btn-reset-image">恢复默认狗</button>
+      </div>
+      <div class="settings__row">
         <button class="ghost-btn" id="btn-clear">清空对话</button>
         <button class="primary-btn" id="btn-save">保存</button>
       </div>
@@ -247,6 +251,14 @@ el<HTMLButtonElement>('btn-clear').addEventListener('click', async () => {
   window.api.chat.clear()
   msgsEl.innerHTML = ''
   settingsHint.textContent = '对话已清空'
+})
+el<HTMLButtonElement>('btn-pick-image').addEventListener('click', async () => {
+  const cfg = await window.api.pickPetImage()
+  settingsHint.textContent = cfg.hasPetImage ? '形象已更新 ✓' : '未选择图片'
+})
+el<HTMLButtonElement>('btn-reset-image').addEventListener('click', async () => {
+  await window.api.resetPetImage()
+  settingsHint.textContent = '已恢复默认狗 🐶'
 })
 
 void renderHistory()

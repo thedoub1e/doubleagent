@@ -24,6 +24,9 @@ window.api.onAttention(() => {
   dog.el.classList.add('pet--attention')
 })
 
+// 自定义形象（用户上传的图片/GIF）；null 表示用回自绘狗。
+window.api.onPetImage((dataUrl) => dog.setImage(dataUrl))
+
 // ---- 点击穿透 ----
 // 窗口默认可交互。鼠标移动时用 elementFromPoint 看落点是否在小狗(.pet)上：
 // 在 → 可交互；落到透明背景 → 切点击穿透(ignore)。只在状态变化时发 IPC。
