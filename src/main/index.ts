@@ -1,12 +1,26 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { loadConfig, publicConfig, saveConfig } from './config'
+import { abortChat, runChat, type ChatMessage } from './chat'
+import { appendMessage, clearHistory, loadHistory } from './history'
 
-// 桌宠窗口尺寸（含小狗 + 气泡按钮 + 状态条的留白）。
 const PET_WIDTH = 240
 const PET_HEIGHT = 300
+const CHAT_WIDTH = 360
+const CHAT_HEIGHT = 520
 const MARGIN = 24
+const GAP = 12
+const REPLY_LINGER_MS = 2500
 
 let petWindow: BrowserWindow | null = null
+let chatWindow: BrowserWindow | null = null
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+type Mood = 'idle' | 'thinking' | 'reply'
+
+function setMood(mood: Mood): void {
+  petWindow?.webContents.send('pet:mood', mood)
+}
 
 function createPetWindow(): void {
   const { workArea } = screen.getPrimaryDisplay()
@@ -34,47 +48,145 @@ function createPetWindow(): void {
     }
   })
 
-  // 常驻置顶、且在所有桌面/全屏空间可见，符合「桌宠」的陪伴属性。
   petWindow.setAlwaysOnTop(true, 'floating')
   petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-
-  // 默认「可交互」，避免启动即忽略鼠标导致点不动/拖不动的死锁。
-  // 点击穿透由渲染层按指针是否在小狗上，通过 pet:set-ignore 动态切换。
   petWindow.setIgnoreMouseEvents(false)
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    petWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    petWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-
+  loadRenderer(petWindow, 'index')
   petWindow.on('closed', () => {
     petWindow = null
   })
 }
 
-// 点击穿透开关：ignore=true 时透明区域的点击穿透到桌面；forward:true 让鼠标移动事件
-// 仍转发给渲染层，使指针移回小狗时能被检测到并切回可交互。
-ipcMain.on('pet:set-ignore', (_event, ignore: boolean) => {
-  if (!petWindow) return
-  petWindow.setIgnoreMouseEvents(ignore, { forward: true })
+function createChatWindow(): void {
+  chatWindow = new BrowserWindow({
+    width: CHAT_WIDTH,
+    height: CHAT_HEIGHT,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    fullscreenable: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  })
+
+  chatWindow.setAlwaysOnTop(true, 'floating')
+  chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  loadRenderer(chatWindow, 'chat')
+  chatWindow.on('closed', () => {
+    chatWindow = null
+  })
+}
+
+function loadRenderer(win: BrowserWindow, entry: 'index' | 'chat'): void {
+  const devUrl = process.env.ELECTRON_RENDERER_URL
+  if (devUrl) {
+    win.loadURL(entry === 'index' ? devUrl : `${devUrl}/${entry}.html`)
+  } else {
+    win.loadFile(join(__dirname, `../renderer/${entry === 'index' ? 'index' : 'chat'}.html`))
+  }
+}
+
+function positionChatNearPet(): void {
+  if (!chatWindow || !petWindow) return
+  const petBounds = petWindow.getBounds()
+  const { workArea } = screen.getDisplayMatching(petBounds)
+  // 默认放在小狗左侧、顶端对齐；越界则贴回工作区内。
+  let x = petBounds.x - CHAT_WIDTH - GAP
+  if (x < workArea.x + MARGIN) x = petBounds.x + petBounds.width + GAP
+  let y = petBounds.y + petBounds.height - CHAT_HEIGHT
+  if (y < workArea.y + MARGIN) y = workArea.y + MARGIN
+  chatWindow.setPosition(Math.round(x), Math.round(y))
+}
+
+function toggleChat(): void {
+  if (!chatWindow) createChatWindow()
+  if (!chatWindow) return
+  if (chatWindow.isVisible()) {
+    chatWindow.hide()
+  } else {
+    positionChatNearPet()
+    chatWindow.show()
+    chatWindow.focus()
+  }
+}
+
+function scheduleIdle(): void {
+  if (idleTimer) clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => setMood('idle'), REPLY_LINGER_MS)
+}
+
+// ---- 桌宠窗口交互 IPC ----
+ipcMain.on('pet:set-ignore', (_e, ignore: boolean) => {
+  petWindow?.setIgnoreMouseEvents(ignore, { forward: true })
 })
 
-// 手动拖动：渲染层按鼠标全局位移发增量，主进程据当前位置偏移窗口（不依赖 -webkit-app-region）。
-ipcMain.on('pet:drag-by', (_event, dx: number, dy: number) => {
+ipcMain.on('pet:drag-by', (_e, dx: number, dy: number) => {
   if (!petWindow) return
   const [x, y] = petWindow.getPosition()
   petWindow.setPosition(Math.round(x + dx), Math.round(y + dy))
 })
 
-app.whenReady().then(() => {
-  createPetWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createPetWindow()
+ipcMain.on('pet:toggle-chat', () => toggleChat())
+ipcMain.on('chat:close', () => chatWindow?.hide())
+
+// ---- 配置 / 历史 IPC ----
+ipcMain.handle('config:get', () => publicConfig())
+ipcMain.handle('config:set', (_e, patch: Record<string, unknown>) => {
+  saveConfig(patch)
+  return publicConfig()
+})
+ipcMain.handle('chat:history', () => loadHistory())
+ipcMain.on('chat:clear', () => clearHistory())
+ipcMain.on('chat:abort', () => abortChat())
+
+// ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
+ipcMain.on('chat:send', async (_e, text: string) => {
+  const trimmed = (text ?? '').trim()
+  if (trimmed.length === 0 || !chatWindow) return
+
+  const userMsg: ChatMessage = { role: 'user', content: trimmed }
+  const history = appendMessage(userMsg)
+
+  const send = (channel: string, payload?: unknown): void => {
+    chatWindow?.webContents.send(channel, payload)
+  }
+
+  setMood('thinking')
+  await runChat(history, loadConfig(), {
+    onStart: () => send('chat:start'),
+    onDelta: (delta) => send('chat:delta', delta),
+    onDone: (fullText) => {
+      if (fullText.length > 0) appendMessage({ role: 'assistant', content: fullText })
+      send('chat:done', fullText)
+      setMood('reply')
+      scheduleIdle()
+    },
+    onError: (message) => {
+      send('chat:error', message)
+      setMood('idle')
+    }
   })
 })
 
-// 桌宠是常驻应用：macOS 上关掉窗口不退出（保持 Dock 存在以便再次唤起）。
+app.whenReady().then(() => {
+  createPetWindow()
+  createChatWindow()
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createPetWindow()
+      createChatWindow()
+    }
+  })
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })

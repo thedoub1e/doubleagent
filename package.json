@@ -18,5 +18,8 @@
     "electron-vite": "^5.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.79.1"
   }
 }

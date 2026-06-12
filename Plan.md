@@ -4,8 +4,9 @@ _单一事实来源（Source of truth）。始终保持本文件最新。_
 _Last updated: 2026-06-12_
 
 ## Current Objective
-✅ Electron 单栈骨架已跑通（透明置顶 + 可拖动 + 点击穿透 + 三态占位，build/boot 通过）。
-下一步：集成 `@earendil-works/pi-ai` 模型层 + 聊天面板（先单源跑通流式对话）。
+✅ 聊天 MVP 已接好（pi-ai 在主进程流式 → IPC 推聊天窗；独立聊天窗+设置+本地历史；小狗情绪
+随对话状态切换）。**待用户用真 MiniMax key 端到端验证**（无 key 无法自测真实调用）。
+下一步据实测结果修 bug，然后补 Markdown 渲染 / 多源预设 / 主动监督。
 
 ## 产品用意（核心 — 用户 2026-06-12 补充）
 交付对象是**在国外留学的伴侣**，本质是一只「数字陪伴者」。要实现四大功能：
@@ -38,7 +39,18 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 模型层，**不再手写** OpenAI 兼容客户端。理由：原生支持 DeepSeek/MiniMax/智谱GLM(ZAI)/Kimi，
 通义与 Gemini反代 走「Any OpenAI-compatible API」自定义 baseURL；白送 流式 + 工具调用 +
 成本统计 + 上下文序列化/持久化。六源全覆盖，配置 = `baseURL + apiKey + model`，默认留空让
-用户选，存本地 userData。
+用户选，存本地 userData。**首发默认源 = MiniMax（用户指定 2026-06-12）**。
+
+**MiniMax 接入实测（pi-ai 探测）**：
+- provider `minimax`（国际站 `https://api.minimax.io`）/ `minimax-cn`（国内）。伴侣在国外 →
+  用国际站 `minimax`。
+- 模型：`MiniMax-M2.7` / `MiniMax-M2.7-highspeed` / `MiniMax-M3`（均 reasoning）。
+  **默认 = MiniMax-M3（用户选定 2026-06-12）**，设置里可切换。
+- ⚠️ **协议 ≠ 厂商**：这些模型的 `api` 是 `anthropic-messages`，即走 MiniMax 自家的
+  Anthropic 兼容端点 `api.minimax.io/anthropic`，底层会用到 `@anthropic-ai/sdk` 库，但
+  **数据只发 MiniMax、用 MiniMax 自家模型，绝不触达 Anthropic/Claude** → 红线实质守住。
+- key：调用时以 `{ apiKey }` 传入（存主进程 userData，不进渲染层 / 不进 git）；env 名
+  约定 `MINIMAX_API_KEY`。GroupId 是否需要 → 拿到真 key 时验证。
 - ⚠️ **依赖代价**：pi-ai 打包多家 SDK（含 `@anthropic-ai/sdk`/`openai`/`@google/genai`/
   `mistral`/`bedrock`），比手写单文件客户端重 → 触「依赖少可审计」红线，但 MIT 可审计、
   省造轮子，功能优先下接受（用户确认）。
@@ -66,12 +78,12 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 ## TODO
 - [ ] 线条小狗形象：从免费无水印合集(爱给网等)挑选素材，映射待机/思考/回复三态；自绘风格作 fallback（当前是自绘占位）
 - [ ] 形象自定义：支持用户上传图片替换默认小狗（本地 userData，不进 git）
-- [ ] 聊天面板：类 Gemini 对话 UI（流式输出、Markdown 渲染）
-- [ ] 模型层：集成 `@earendil-works/pi-ai`，跑通 DeepSeek/MiniMax/GLM/Kimi 原生 + 通义/Gemini反代 自定义 baseURL
-- [ ] 对话记忆：pi-ai context 持久化 + 自建 TS 滚动摘要式长期记忆（学 Clarvis 理念，不引 Python）
+- [~] 聊天面板：类 Gemini 对话 UI（流式输出已通；Markdown 渲染待补）—— 已建独立聊天窗
+- [~] 模型层：集成 `@earendil-works/pi-ai`（主进程跑，key 不进渲染层）；MiniMax 已接，余源待补预设
+- [~] 对话记忆：本地全量历史持久化(history.json)已通；滚动摘要式长期记忆待补
 - [ ] 主动监督：轻量调度器 + macOS 系统通知 + 可配置提醒/打卡（如每晚关心、学习督促）；可选 pi-agent-core 注册"提醒/查询"安全工具
-- [ ] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（知道她在国外、会主动关心；设置可改）
-- [ ] 设置面板：6 源预设（DeepSeek/通义/GLM/Kimi/MiniMax/Gemini反代）+ baseURL/key/model 表单，存本地 userData
+- [x] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（已写进 config 默认，设置可改）
+- [~] 设置面板：模型选择 + key 表单(存主进程 userData,不回传明文)已通；6 源预设/baseURL 待补
 - [ ] 配置与密钥：本地存储、`.env.example`、`.gitignore` 屏蔽密钥（已建 .gitignore）
 - [ ] 保姆级安装：`安装.command` / `启动小狗.command` 脚本 + 自启动（可选登录项）
 - [ ] 图文教程：拿 API Key、安装、首次启动、常见报错 FAQ
@@ -79,7 +91,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [ ] 在自己机器上完整演练「对方视角」：从 0 拉仓库到能聊天
 
 ## In Progress
-- [ ] 模型层 + 聊天面板（下一步）
+- [ ] 用真 MiniMax key 端到端验证流式对话（确认 anthropic-messages 端点鉴权 / 是否需 GroupId）
 
 ## Done
 - [x] 调研可二开/参考的开源桌宠项目（Open-LLM-VTuber 等 + 用户指定的 Clarvis）
@@ -87,6 +99,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [x] 建 doubleagent/ 子文件夹 + git init + 起草 Principal/Plan/Errors/AOL + .gitignore
 - [x] **定稿四项 Open Question**：Electron 单栈 / 自绘+可上传形象 / MVP+对话记忆 / 六源含 MiniMax 默认留空
 - [x] **Electron 单栈骨架**：透明置顶 + 可拖动 + 点击穿透(IPC 切 ignoreMouseEvents) + 三态占位线条小狗；electron-vite 5 + vite 6，typecheck/build/boot 全过
+- [x] **聊天 MVP 接线**：pi-ai 主进程流式 + IPC + 独立聊天窗(类 Gemini 气泡/流式/设置抽屉) + 本地历史持久化 + 小狗情绪联动 + 陪伴人设；typecheck/build/boot 全过（真实调用待 key 验证）
 
 ## Open Questions / Decisions
 - ~~架构底座~~ → ✅ 采纳 Electron 单栈 + 从源码运行 + 不 fork Clarvis。

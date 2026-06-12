@@ -7,13 +7,15 @@ if (!root) throw new Error('pet-root not found')
 const dog = createDog()
 root.appendChild(dog.el)
 
-// 占位「打开聊天」动作：循环切三态情绪（之后换成真正的聊天面板）。
-const MOODS: Mood[] = ['idle', 'thinking', 'reply']
-let moodIndex = 0
+// 点击小狗 = 打开/收起聊天面板。情绪由主进程按对话状态广播。
 function triggerChat(): void {
-  moodIndex = (moodIndex + 1) % MOODS.length
-  dog.setMood(MOODS[moodIndex])
+  window.api.toggleChat()
 }
+
+const VALID_MOODS: Mood[] = ['idle', 'thinking', 'reply']
+window.api.onMood((mood) => {
+  if ((VALID_MOODS as string[]).includes(mood)) dog.setMood(mood as Mood)
+})
 
 // ---- 点击穿透 ----
 // 窗口默认可交互。鼠标移动时用 elementFromPoint 看落点是否在小狗(.pet)上：

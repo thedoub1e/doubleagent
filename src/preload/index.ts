@@ -1,17 +1,52 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// 最小桥接面：渲染层只能调到我们显式暴露的安全方法（contextIsolation）。
+// 最小桥接面（contextIsolation）：桌宠窗口与聊天窗口共用，各取所需。
 const api = {
-  /** 切换点击穿透：true=透明区点击穿透到桌面；false=窗口可交互。 */
-  setIgnore: (ignore: boolean): void => {
-    ipcRenderer.send('pet:set-ignore', ignore)
+  // —— 桌宠 overlay ——
+  setIgnore: (ignore: boolean): void => ipcRenderer.send('pet:set-ignore', ignore),
+  dragBy: (dx: number, dy: number): void => ipcRenderer.send('pet:drag-by', dx, dy),
+  toggleChat: (): void => ipcRenderer.send('pet:toggle-chat'),
+  onMood: (cb: (mood: string) => void): void => {
+    ipcRenderer.on('pet:mood', (_e, mood: string) => cb(mood))
   },
-  /** 手动拖动：发送鼠标全局位移增量，主进程据此偏移窗口。 */
-  dragBy: (dx: number, dy: number): void => {
-    ipcRenderer.send('pet:drag-by', dx, dy)
+
+  // —— 聊天 ——
+  chat: {
+    send: (text: string): void => ipcRenderer.send('chat:send', text),
+    abort: (): void => ipcRenderer.send('chat:abort'),
+    clear: (): void => ipcRenderer.send('chat:clear'),
+    close: (): void => ipcRenderer.send('chat:close'),
+    history: (): Promise<Array<{ role: string; content: string }>> => ipcRenderer.invoke('chat:history'),
+    onStart: (cb: () => void): void => {
+      ipcRenderer.on('chat:start', () => cb())
+    },
+    onDelta: (cb: (delta: string) => void): void => {
+      ipcRenderer.on('chat:delta', (_e, delta: string) => cb(delta))
+    },
+    onDone: (cb: (fullText: string) => void): void => {
+      ipcRenderer.on('chat:done', (_e, fullText: string) => cb(fullText))
+    },
+    onError: (cb: (message: string) => void): void => {
+      ipcRenderer.on('chat:error', (_e, message: string) => cb(message))
+    }
+  },
+
+  // —— 配置 ——
+  config: {
+    get: (): Promise<PublicConfigView> => ipcRenderer.invoke('config:get'),
+    set: (patch: Record<string, unknown>): Promise<PublicConfigView> =>
+      ipcRenderer.invoke('config:set', patch)
   }
+}
+
+export interface PublicConfigView {
+  provider: string
+  model: string
+  hasApiKey: boolean
+  baseUrl?: string
+  systemPrompt: string
 }
 
 contextBridge.exposeInMainWorld('api', api)
 
-export type PetApi = typeof api
+export type DoubleAgentApi = typeof api
