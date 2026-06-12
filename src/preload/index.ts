@@ -6,6 +6,7 @@ const api = {
   setIgnore: (ignore: boolean): void => ipcRenderer.send('pet:set-ignore', ignore),
   dragBy: (dx: number, dy: number): void => ipcRenderer.send('pet:drag-by', dx, dy),
   toggleChat: (): void => ipcRenderer.send('pet:toggle-chat'),
+  openExternal: (url: string): void => ipcRenderer.send('open-external', url),
   onMood: (cb: (mood: string) => void): void => {
     ipcRenderer.on('pet:mood', (_e, mood: string) => cb(mood))
   },

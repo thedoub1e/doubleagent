@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { loadDotEnv } from './env'
 import { loadConfig, publicConfig, saveConfig } from './config'
 
@@ -140,6 +140,11 @@ ipcMain.on('pet:drag-by', (_e, dx: number, dy: number) => {
 
 ipcMain.on('pet:toggle-chat', () => toggleChat())
 ipcMain.on('chat:close', () => chatWindow?.hide())
+
+// 仅放行 http(s)，用系统浏览器打开外链。
+ipcMain.on('open-external', (_e, url: string) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) shell.openExternal(url)
+})
 
 // ---- 配置 / 历史 IPC ----
 ipcMain.handle('config:get', () => publicConfig())

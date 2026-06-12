@@ -205,6 +205,69 @@ body {
   opacity: 0.5;
   animation: blink 1.2s steps(3, end) infinite;
 }
+
+/* ---- Markdown ---- */
+.bubble .md-p {
+  margin: 0;
+}
+.bubble .md-p + .md-p,
+.bubble .md-p + .md-ul,
+.bubble .md-p + .md-ol,
+.bubble .md-h {
+  margin-top: 6px;
+}
+.bubble .md-h {
+  font-size: 14px;
+  font-weight: 700;
+}
+.bubble .md-ul,
+.bubble .md-ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.bubble .md-ul li,
+.bubble .md-ol li {
+  margin: 2px 0;
+}
+.bubble code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: rgba(20, 20, 24, 0.08);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.msg--user .bubble code {
+  background: rgba(255, 255, 255, 0.18);
+}
+.bubble .md-pre {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: rgba(20, 20, 24, 0.06);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+.msg--user .bubble .md-pre {
+  background: rgba(255, 255, 255, 0.12);
+}
+.bubble .md-pre code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+.bubble .md-bq {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid rgba(20, 20, 24, 0.18);
+  color: var(--ink-soft);
+}
+.bubble .md-link {
+  color: #2563c9;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.msg--user .bubble .md-link {
+  color: #cfe0ff;
+}
 @keyframes pop {
   from {
     opacity: 0;

@@ -12,6 +12,7 @@ interface DoubleAgentApi {
   setIgnore: (ignore: boolean) => void
   dragBy: (dx: number, dy: number) => void
   toggleChat: () => void
+  openExternal: (url: string) => void
   onMood: (cb: (mood: string) => void) => void
   chat: {
     send: (text: string) => void

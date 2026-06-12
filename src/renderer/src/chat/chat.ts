@@ -1,4 +1,5 @@
 import './chat.css'
+import { renderMarkdown } from './markdown'
 
 const MODELS = ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed']
 
@@ -54,13 +55,20 @@ const settingsHint = el<HTMLParagraphElement>('settings-hint')
 
 let streaming = false
 let activeBubble: HTMLDivElement | null = null
+let activeRaw = ''
+
+// 助手气泡走 Markdown 渲染（已在 markdown.ts 内先转义防 XSS）；用户气泡纯文本。
+function setBubbleContent(bubble: HTMLDivElement, role: 'user' | 'assistant', text: string): void {
+  if (role === 'assistant') bubble.innerHTML = renderMarkdown(text)
+  else bubble.textContent = text
+}
 
 function addMessage(role: 'user' | 'assistant', text: string): HTMLDivElement {
   const row = document.createElement('div')
   row.className = `msg msg--${role}`
   const bubble = document.createElement('div')
   bubble.className = 'bubble'
-  bubble.textContent = text
+  setBubbleContent(bubble, role, text)
   row.appendChild(bubble)
   msgsEl.appendChild(row)
   msgsEl.scrollTop = msgsEl.scrollHeight
@@ -94,6 +102,7 @@ function send(): void {
   addMessage('user', text)
   inputEl.value = ''
   autosize()
+  activeRaw = ''
   activeBubble = addMessage('assistant', '')
   activeBubble.classList.add('is-typing')
   setStreaming(true)
@@ -102,14 +111,21 @@ function send(): void {
 }
 
 window.api.chat.onDelta((delta) => {
-  if (!activeBubble) activeBubble = addMessage('assistant', '')
+  if (!activeBubble) {
+    activeRaw = ''
+    activeBubble = addMessage('assistant', '')
+  }
   activeBubble.classList.remove('is-typing')
-  activeBubble.textContent += delta
+  activeRaw += delta
+  setBubbleContent(activeBubble, 'assistant', activeRaw)
   msgsEl.scrollTop = msgsEl.scrollHeight
 })
 
-window.api.chat.onDone(() => {
-  activeBubble?.classList.remove('is-typing')
+window.api.chat.onDone((fullText) => {
+  if (activeBubble) {
+    activeBubble.classList.remove('is-typing')
+    if (fullText.length > 0) setBubbleContent(activeBubble, 'assistant', fullText)
+  }
   activeBubble = null
   setStreaming(false)
   inputEl.focus()
@@ -161,6 +177,15 @@ async function renderHistory(): Promise<void> {
 }
 
 // ---- 事件绑定 ----
+// Markdown 链接：在系统浏览器打开，绝不让聊天窗自身导航走。
+msgsEl.addEventListener('click', (e) => {
+  const link = (e.target as HTMLElement).closest('.md-link') as HTMLElement | null
+  if (link?.dataset.href) {
+    e.preventDefault()
+    window.api.openExternal(link.dataset.href)
+  }
+})
+
 sendBtn.addEventListener('click', send)
 inputEl.addEventListener('input', autosize)
 inputEl.addEventListener('keydown', (e) => {
