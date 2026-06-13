@@ -13,6 +13,9 @@ const api = {
   onAttention: (cb: () => void): void => {
     ipcRenderer.on('pet:attention', () => cb())
   },
+  onSay: (cb: (text: string) => void): void => {
+    ipcRenderer.on('pet:say', (_e, text: string) => cb(text))
+  },
   onVisual: (cb: (visual: PetVisual) => void): void => {
     ipcRenderer.on('pet:visual', (_e, visual: PetVisual) => cb(visual))
   },

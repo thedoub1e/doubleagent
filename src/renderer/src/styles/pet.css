@@ -129,6 +129,48 @@ body {
   transform: scale(0.94);
 }
 
+/* 主动消息头顶气泡：白卡 + 向下小尾巴指向小狗，淡入数秒后淡出；点它＝打开聊天。 */
+.pet__bubble {
+  max-width: 188px;
+  margin-bottom: 8px;
+  padding: 8px 11px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 12.5px;
+  line-height: 1.45;
+  border-radius: 13px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  position: relative;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+}
+.pet__bubble[hidden] {
+  display: none !important;
+}
+.pet__bubble.is-show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.pet__bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #fff;
+  border-bottom: 0;
+}
+
 .pet__caption {
   margin-top: 2px;
   font-size: 12px;

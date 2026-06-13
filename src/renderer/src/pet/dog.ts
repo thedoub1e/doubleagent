@@ -68,18 +68,26 @@ export interface Dog {
   setSprite: (config: SpriteConfig | null) => void
   setGifSet: (pools: GifPools | null) => void
   flashAttention: () => void
+  /** 主动消息时在小狗头顶冒出气泡，数秒后自动淡出。 */
+  say: (text: string) => void
+  /** 立即收起气泡（如点开聊天时）。 */
+  hideBubble: () => void
 }
+
+const BUBBLE_LINGER_MS = 8000
 
 export function createDog(): Dog {
   const el = document.createElement('div')
   el.className = 'pet'
   el.innerHTML = `
     <button class="pet__chat" type="button" title="打开聊天" aria-label="打开聊天">💬</button>
+    <div class="pet__bubble" hidden></div>
     <div class="pet__stage">${dogSvg(FACE.idle)}</div>
     <div class="pet__caption">${CAPTION.idle}</div>
   `
 
   const chatButton = el.querySelector('.pet__chat') as HTMLButtonElement
+  const bubble = el.querySelector('.pet__bubble') as HTMLDivElement
   const stage = el.querySelector('.pet__stage') as HTMLDivElement
   const caption = el.querySelector('.pet__caption') as HTMLDivElement
 
@@ -193,5 +201,28 @@ export function createDog(): Dog {
     if (url) showGif(url)
   }
 
-  return { el, chatButton, setMood, setImage, setSprite, setGifSet, flashAttention }
+  let bubbleTimer: ReturnType<typeof setTimeout> | null = null
+  const hideBubble = (): void => {
+    if (bubbleTimer) {
+      clearTimeout(bubbleTimer)
+      bubbleTimer = null
+    }
+    bubble.classList.remove('is-show')
+    // 等淡出动画结束再 hidden，避免突兀消失。
+    setTimeout(() => {
+      if (!bubble.classList.contains('is-show')) bubble.hidden = true
+    }, 220)
+  }
+  const say = (text: string): void => {
+    const t = text.trim()
+    if (t.length === 0) return
+    bubble.textContent = t // textContent 而非 innerHTML：防 XSS（内容含模型输出）
+    bubble.hidden = false
+    void bubble.offsetWidth // 重排以触发淡入过渡
+    bubble.classList.add('is-show')
+    if (bubbleTimer) clearTimeout(bubbleTimer)
+    bubbleTimer = setTimeout(hideBubble, BUBBLE_LINGER_MS)
+  }
+
+  return { el, chatButton, setMood, setImage, setSprite, setGifSet, flashAttention, say, hideBubble }
 }

@@ -57,7 +57,7 @@ import { EMOTION_INSTRUCTION, emotionToPetState, parseEmotion, type Emotion } fr
 loadDotEnv()
 
 const PET_WIDTH = 240
-const PET_HEIGHT = 300
+const PET_HEIGHT = 380 // 多出的高度留给狗头顶的主动气泡（狗底部对齐，位置不变）
 const CHAT_WIDTH = 360
 const CHAT_HEIGHT = 520
 const MARGIN = 24
@@ -413,6 +413,8 @@ function pushProactive(message: string): void {
   }
   appendMessage({ role: 'assistant', content: clean })
   chatWindow?.webContents.send('chat:proactive', clean)
+  // 桌面头顶气泡：让主动消息「看得见」，不只靠系统通知 / 隐藏的聊天窗。
+  petWindow?.webContents.send('pet:say', clean)
   // 先发情绪(reply)，再发 attention —— 动图集模式下「提醒」动图后到、压过 reply，先到先被覆盖。
   setMood('reply')
   petWindow?.webContents.send('pet:attention')

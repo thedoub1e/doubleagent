@@ -9,8 +9,12 @@ root.appendChild(dog.el)
 
 // 点击小狗 = 打开/收起聊天面板。情绪由主进程按对话状态广播。
 function triggerChat(): void {
+  dog.hideBubble() // 进聊天了就收起头顶气泡
   window.api.toggleChat()
 }
+
+// 主动消息：在小狗头顶冒出气泡（数秒自动淡出）。系统通知仍作后台兜底。
+window.api.onSay((text) => dog.say(text))
 
 const VALID_MOODS: Mood[] = ['idle', 'thinking', 'reply']
 window.api.onMood((mood) => {
