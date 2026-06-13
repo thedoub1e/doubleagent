@@ -25,6 +25,7 @@ import { DEFAULT_FOCUS_MINUTES, MAX_FOCUS_MINUTES, recordCompletion, streakLine 
 import { loadStreak, saveStreak } from './pomodoroStore'
 import { eventLeadMinutes, isUpcoming } from './calendar'
 import { anniversaryLine, daysUntil, type Anniversary } from './anniversary'
+import { cancelDailyReminders, upsertDailyReminder } from './reminderRules'
 import { dayKey } from './scheduleUtil'
 import {
   BREAK_IDLE_SEC,
@@ -233,15 +234,22 @@ function scheduleIdle(): void {
 const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六']
 const DEFAULT_REMINDER_HOUR = 9 // 只给了日期没给时间时，默认早 9 点提醒
 
-/** 注入到人设末尾，让模型把「明天/下周二」算成 ISO，并知道有 create_reminder 工具。 */
+/** 注入到人设末尾：当前日期 + 「无感行动」指令，让小狗从自然对话里主动用工具帮用户。 */
 function todayHint(now: Date): string {
   const y = now.getFullYear()
   const m = now.getMonth() + 1
   const d = now.getDate()
   return (
-    `\n\n【今天】${y}-${m}-${d}（周${WEEKDAY_CN[now.getDay()]}）。` +
-    '当用户想被提醒做某事/记待办/排日程时，调用 create_reminder 工具；' +
-    'dueISO 用本地时间，相对日期（明天、下周二等）据「今天」推算。'
+    `\n\n【今天】${y}-${m}-${d}（周${WEEKDAY_CN[now.getDay()]}）。\n` +
+    '【你能帮用户做事，要主动、无感地用工具，不必等她说「帮我记一下」】：\n' +
+    '· 她提到要做的事/截止/约会（如「下周三交论文」「明天3点面试」）→ create_reminder（dueISO 本地时间，' +
+    '相对日期据「今天」推算；只给日期不给时间就只填日期）。\n' +
+    '· 她说做完了某事 → complete_reminder。\n' +
+    '· 她提到重要日子（考试/回国/生日/纪念日）→ add_countdown。\n' +
+    '· 她想每天定点被提醒（「每天9点提醒我背单词」）→ set_daily_reminder；不想要了 → cancel_daily_reminder。\n' +
+    '· 她提到自己在哪/搬家了 → set_location。\n' +
+    '· 她想清静/被打扰够了 → set_supervision(false)；想恢复督促 → set_supervision(true)。\n' +
+    '原则：能用工具落地的就别只回「好的」，要真的帮她办了再用一句话亲切告诉她；但纯闲聊别硬塞工具。'
   )
 }
 
@@ -278,6 +286,42 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
       lines.push(res.ok ? `✅ 帮你把「${title}」勾掉啦，真棒🐶` : res.error)
     } else if (call.name === 'add_countdown') {
       lines.push(addCountdown(String(args.name ?? '').trim(), String(args.date ?? '').trim(), Boolean(args.recurring)))
+    } else if (call.name === 'set_location') {
+      const city = String(args.city ?? '').trim()
+      saveConfig({ weatherCity: city })
+      lines.push(
+        city.length > 0
+          ? `好~以后给你报「${city}」的天气🐶`
+          : '好，我按你的网络位置自动给你报天气🐶'
+      )
+    } else if (call.name === 'set_supervision') {
+      const enabled = Boolean(args.enabled)
+      saveConfig({ supervisionEnabled: enabled })
+      lines.push(enabled ? '好，我继续好好盯着你～有事提醒你🐶' : '好，我先不打扰你啦，需要我随时喊我🐶')
+    } else if (call.name === 'set_daily_reminder') {
+      const time = String(args.time ?? '').trim()
+      const message = String(args.message ?? '').trim()
+      const res = upsertDailyReminder(loadConfig().reminders, time, message)
+      if (!res) {
+        lines.push('这个时间我没看懂呢，给我个像「09:00」这样的时间好嘛？🐶')
+      } else {
+        saveConfig({ reminders: res.reminders })
+        lines.push(
+          res.updated
+            ? `好，${res.time} 的提醒改成「${message}」啦🐶`
+            : `记好啦，每天 ${res.time} 提醒你「${message}」🐶`
+        )
+      }
+    } else if (call.name === 'cancel_daily_reminder') {
+      const time = typeof args.time === 'string' ? args.time : undefined
+      const keyword = typeof args.keyword === 'string' ? args.keyword : undefined
+      const res = cancelDailyReminders(loadConfig().reminders, { time, keyword })
+      if (res.removed > 0) {
+        saveConfig({ reminders: res.reminders })
+        lines.push('好，那条每日提醒取消啦，不打扰你咯🐶')
+      } else {
+        lines.push('没找到对应的提醒呢，要不告诉我具体几点的那条？🐶')
+      }
     }
   }
   return lines.join('\n')

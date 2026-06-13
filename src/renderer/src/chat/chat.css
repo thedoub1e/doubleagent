@@ -298,6 +298,15 @@ body {
   flex: none;
 }
 
+.settings__note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background: var(--bot-bubble);
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
 /* 两步确认按钮的「确认?」态：醒目红框提示，再点一次才执行。 */
 .ghost-btn.is-armed {
   color: var(--error);

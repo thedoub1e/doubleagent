@@ -83,8 +83,73 @@ export const addCountdownTool: Tool = defineTool(
   }
 )
 
-/** 注册给模型的工具集合（仅安全工具：建提醒 / 核销 / 倒数日）。 */
-export const PET_TOOLS: Tool[] = [createReminderTool, completeReminderTool, addCountdownTool]
+/** 「设定位置」工具：用户提到自己在哪/搬到哪 → 设天气播报城市（留空＝按 IP 自动）。 */
+export const setLocationTool: Tool = defineTool(
+  'set_location',
+  '当用户提到自己现在在哪个城市/国家、或搬家了（如「我在马德里」「我回北京了」）时调用，' +
+    '用于天气播报定位。想恢复自动定位则给空字符串。',
+  {
+    type: 'object',
+    properties: {
+      city: { type: 'string', description: '城市名，如「马德里」「New York」；留空＝按网络位置自动定位' }
+    },
+    required: ['city']
+  }
+)
+
+/** 「主动监督开关」工具：用户想清静/想被督促时切换所有主动提醒与简报。 */
+export const setSupervisionTool: Tool = defineTool(
+  'set_supervision',
+  '当用户想让你别打扰（「别管我了」「静音」「今天别提醒我」）→ enabled=false；' +
+    '想恢复督促（「继续监督我」「正常提醒吧」）→ enabled=true 时调用。',
+  {
+    type: 'object',
+    properties: {
+      enabled: { type: 'boolean', description: 'true=开启主动提醒/简报；false=全部静音' }
+    },
+    required: ['enabled']
+  }
+)
+
+/** 「设定每日提醒」工具：用户想每天定点被提醒做某事（区别于一次性的 create_reminder）。 */
+export const setDailyReminderTool: Tool = defineTool(
+  'set_daily_reminder',
+  '当用户想要「每天/每晚」定点被提醒做某事时调用（如「每天9点提醒我背单词」「以后每晚10点叫我喝水」）。' +
+    '这是每日重复的关心提醒；只提醒一次的具体待办请用 create_reminder。',
+  {
+    type: 'object',
+    properties: {
+      time: { type: 'string', description: '每天提醒的时间，24 小时制 HH:MM，如 09:00、22:30' },
+      message: { type: 'string', description: '提醒说的话，如「该背单词啦」「起来喝口水～」' }
+    },
+    required: ['time', 'message']
+  }
+)
+
+/** 「取消每日提醒」工具：用户不想再被某条每日提醒打扰时。 */
+export const cancelDailyReminderTool: Tool = defineTool(
+  'cancel_daily_reminder',
+  '当用户想取消某条每日定点提醒时调用（如「别在23:30喊我睡觉了」「取消背单词的提醒」）。' +
+    '可给时间或关键词来定位要取消的提醒。',
+  {
+    type: 'object',
+    properties: {
+      time: { type: 'string', description: '要取消的提醒时间 HH:MM（按时间定位时给）' },
+      keyword: { type: 'string', description: '提醒内容里的关键词（按内容定位时给，如「睡觉」「背单词」）' }
+    }
+  }
+)
+
+/** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置；绝不引 file/bash）。 */
+export const PET_TOOLS: Tool[] = [
+  createReminderTool,
+  completeReminderTool,
+  addCountdownTool,
+  setLocationTool,
+  setSupervisionTool,
+  setDailyReminderTool,
+  cancelDailyReminderTool
+]
 
 // 送进模型的上下文最多保留最近 N 条，控制 token 成本（完整历史另存于 history）。
 const MAX_CONTEXT_MESSAGES = 30

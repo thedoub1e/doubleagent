@@ -37,15 +37,7 @@ root.innerHTML = `
         <span>API Key</span>
         <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
       </label>
-      <label class="check">
-        <input type="checkbox" id="chk-supervision" />
-        <span>主动监督（定时提醒 / 打卡）</span>
-      </label>
-      <label class="field">
-        <span>天气城市（留空＝自动按网络位置）</span>
-        <input id="inp-weather" type="text" placeholder="留空＝自动定位；也可手填 如 马德里 / New York" autocomplete="off" />
-      </label>
-      <div class="reminders" id="reminders"></div>
+      <p class="settings__note">提醒、天气位置、监督开关都可以直接跟小狗说，比如「每天9点提醒我学习」「我在马德里」「今天别管我了」🐶</p>
       <div class="pomodoro">
         <div class="pomo-head">
           <span>🍅 番茄钟陪学</span>
@@ -96,9 +88,6 @@ const baseUrlField = el<HTMLLabelElement>('field-baseurl')
 const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
-const supervisionChk = el<HTMLInputElement>('chk-supervision')
-const weatherInput = el<HTMLInputElement>('inp-weather')
-const remindersEl = el<HTMLDivElement>('reminders')
 
 // 切源时：刷新模型下拉 + 记忆模型下拉 + 按是否自定义源显示 baseURL 输入。
 function applyProvider(
@@ -227,34 +216,6 @@ function toggleSettings(): void {
   settingsEl.hidden = !settingsEl.hidden
 }
 
-function renderReminders(reminders: ReminderView[]): void {
-  remindersEl.innerHTML = ''
-  for (const r of reminders) {
-    const row = document.createElement('div')
-    row.className = 'reminder'
-    row.dataset.id = r.id
-    row.innerHTML = `
-      <input type="checkbox" class="rm-on" ${r.enabled ? 'checked' : ''} />
-      <input type="time" class="rm-time" value="${r.time}" />
-      <input type="text" class="rm-msg" />
-    `
-    ;(row.querySelector('.rm-msg') as HTMLInputElement).value = r.message
-    remindersEl.appendChild(row)
-  }
-}
-
-function gatherReminders(): ReminderView[] {
-  return Array.from(remindersEl.querySelectorAll('.reminder')).map((node) => {
-    const row = node as HTMLDivElement
-    return {
-      id: row.dataset.id ?? '',
-      enabled: (row.querySelector('.rm-on') as HTMLInputElement).checked,
-      time: (row.querySelector('.rm-time') as HTMLInputElement).value || '21:00',
-      message: (row.querySelector('.rm-msg') as HTMLInputElement).value
-    }
-  })
-}
-
 // ---- 「小狗眼中的你」画像 ----
 const profileListEl = el<HTMLDivElement>('profile-list')
 const CAT_LABEL: Record<string, string> = {
@@ -305,9 +266,6 @@ async function loadConfig(): Promise<void> {
   applyProvider(providerSel.value, cfg.model, cfg.baseUrl, cfg.memoryModel)
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
-  supervisionChk.checked = cfg.supervisionEnabled
-  weatherInput.value = cfg.weatherCity
-  renderReminders(cfg.reminders)
   void loadProfileFacts()
   if (!cfg.hasApiKey) {
     showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 Key。')
@@ -320,10 +278,7 @@ async function saveConfig(): Promise<void> {
     provider: providerSel.value,
     model: modelSel.value,
     memoryModel: memoryModelSel.value,
-    baseUrl: baseUrlInput.value.trim(),
-    supervisionEnabled: supervisionChk.checked,
-    weatherCity: weatherInput.value.trim(),
-    reminders: gatherReminders()
+    baseUrl: baseUrlInput.value.trim()
   }
   if (keyInput.value.trim().length > 0) patch.apiKey = keyInput.value.trim()
   const cfg = await window.api.config.set(patch)
