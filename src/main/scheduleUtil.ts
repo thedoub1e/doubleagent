@@ -19,3 +19,32 @@ export function isDue(reminder: Reminder, now: Date): boolean {
 export function fireKey(reminder: Reminder, now: Date): string {
   return `${reminder.id}@${dayKey(now)}@${hhmm(now)}`
 }
+
+/** 当天的去重 key（与具体分钟无关）：补发场景下保证"今天这条只发一次"。 */
+export function dayFireKey(reminder: Reminder, now: Date): string {
+  return `${reminder.id}@${dayKey(now)}`
+}
+
+export function minutesOfDay(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/** 提醒设定时刻的当天分钟数（"HH:MM" → 分钟）。非法时间返回 -1。 */
+export function reminderMinutes(reminder: Reminder): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(reminder.time)
+  if (!m) return -1
+  const hours = Number(m[1])
+  const mins = Number(m[2])
+  if (hours > 23 || mins > 59) return -1
+  return hours * 60 + mins
+}
+
+/** 错过补发判定：启用、设定时刻今天已过、且过去未超过 graceMinutes（太久就别补，免得半夜炸）。
+ *  恰好同一分钟由 isDue 负责，这里只管"已过但还新鲜"。 */
+export function isMissed(reminder: Reminder, now: Date, graceMinutes: number): boolean {
+  if (!reminder.enabled) return false
+  const rm = reminderMinutes(reminder)
+  if (rm < 0) return false
+  const nowM = minutesOfDay(now)
+  return rm < nowM && nowM - rm <= graceMinutes
+}
