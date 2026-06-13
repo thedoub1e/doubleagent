@@ -1,4 +1,3 @@
-import { Type } from '@earendil-works/pi-ai'
 import type { Tool, ToolCall } from '@earendil-works/pi-ai'
 import type { AppConfig } from './config'
 import type { FactCategory, FactType, ProfileFact, ProfileOp } from './profileUtil'
@@ -19,48 +18,70 @@ export interface StreamHandlers {
   onToolCalls?: (calls: ToolCall[]) => Promise<string>
 }
 
+// 工具参数用「纯 JSON Schema 对象」声明，不静态 import pi-ai 的 TypeBox `Type`：
+// pi-ai 只导出 ESM "import" 条件，在 Electron 主进程(CJS)里静态值导入会 ERR_PACKAGE_PATH_NOT_EXPORTED
+// （动态 import() 才行）。而 TypeBox 的 Type.Object(...) 运行时本就序列化成等价 JSON Schema，
+// 手写纯对象发给模型完全一致。`import type { Tool }` 是类型导入、编译期擦除，无运行时依赖。
+interface JsonSchema {
+  type: 'object'
+  properties: Record<string, { type: string; description?: string }>
+  required?: string[]
+}
+function defineTool(name: string, description: string, parameters: JsonSchema): Tool {
+  return { name, description, parameters } as unknown as Tool
+}
+
 /** 「对话转待办」工具：让模型在用户想被提醒时把事项写进 macOS 提醒事项。
  *  仅注册这一个安全工具；模型只填参数，AppleScript 模板由我们写死（绝不执行模型给的脚本）。 */
-export const createReminderTool: Tool = {
-  name: 'create_reminder',
-  description:
-    '当用户想被提醒做某事、记一个待办或安排日程时调用，把它写进 macOS 提醒事项。' +
+export const createReminderTool: Tool = defineTool(
+  'create_reminder',
+  '当用户想被提醒做某事、记一个待办或安排日程时调用，把它写进 macOS 提醒事项。' +
     '只在用户明确想要提醒/待办/日程时调用；普通闲聊不要调用。',
-  parameters: Type.Object({
-    title: Type.String({ description: '提醒事项内容，简洁，如「交 essay」「买牛奶」' }),
-    dueISO: Type.Optional(
-      Type.String({
+  {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: '提醒事项内容，简洁，如「交 essay」「买牛奶」' },
+      dueISO: {
+        type: 'string',
         description:
           '提醒/截止时间，ISO 8601 本地时间，如 2026-06-17T09:00；只有日期就给 2026-06-17；' +
           '没有明确时间则省略。请根据系统提示里的「今天」推算「明天/下周二」等相对日期。'
-      })
-    )
-  })
-}
+      }
+    },
+    required: ['title']
+  }
+)
 
 /** 「完成核销」工具：用户说做完了某事时，把对应提醒标记完成（闭环跟进的收尾）。 */
-export const completeReminderTool: Tool = {
-  name: 'complete_reminder',
-  description:
-    '当用户表示已经完成某个提醒/待办（如「essay 交了」「牛奶买好了」）时调用，把它标记完成。',
-  parameters: Type.Object({
-    title: Type.String({ description: '要标记完成的事项标题，尽量与创建时一致，如「交 essay」' })
-  })
-}
+export const completeReminderTool: Tool = defineTool(
+  'complete_reminder',
+  '当用户表示已经完成某个提醒/待办（如「essay 交了」「牛奶买好了」）时调用，把它标记完成。',
+  {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: '要标记完成的事项标题，尽量与创建时一致，如「交 essay」' }
+    },
+    required: ['title']
+  }
+)
 
 /** 「倒数日/纪念日」工具：用户提到重要日子时记下，早安简报里倒计时/庆祝。 */
-export const addCountdownTool: Tool = {
-  name: 'add_countdown',
-  description:
-    '当用户提到一个重要的日子时调用：考试/截止/回国等一次性倒计时，或生日/在一起纪念日等每年重复的纪念日。',
-  parameters: Type.Object({
-    name: Type.String({ description: '日子的名字，如「期末考」「回国」「在一起纪念日」' }),
-    date: Type.String({ description: '日期，YYYY-MM-DD（纪念日给最初那年的日期）' }),
-    recurring: Type.Optional(
-      Type.Boolean({ description: '是否每年重复（生日/纪念日=true；考试/回国等一次性=false）' })
-    )
-  })
-}
+export const addCountdownTool: Tool = defineTool(
+  'add_countdown',
+  '当用户提到一个重要的日子时调用：考试/截止/回国等一次性倒计时，或生日/在一起纪念日等每年重复的纪念日。',
+  {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: '日子的名字，如「期末考」「回国」「在一起纪念日」' },
+      date: { type: 'string', description: '日期，YYYY-MM-DD（纪念日给最初那年的日期）' },
+      recurring: {
+        type: 'boolean',
+        description: '是否每年重复（生日/纪念日=true；考试/回国等一次性=false）'
+      }
+    },
+    required: ['name', 'date']
+  }
+)
 
 /** 注册给模型的工具集合（仅安全工具：建提醒 / 核销 / 倒数日）。 */
 export const PET_TOOLS: Tool[] = [createReminderTool, completeReminderTool, addCountdownTool]
