@@ -71,6 +71,8 @@ interface DoubleAgentApi {
     stop: () => Promise<StreakView>
     state: () => Promise<StreakView>
     onDone: (cb: (state: StreakView) => void) => void
+    onStarted: (cb: (endAt: number) => void) => void
+    onStopped: (cb: () => void) => void
   }
 }
 

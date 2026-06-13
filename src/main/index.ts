@@ -239,14 +239,18 @@ function todayHint(now: Date): string {
   const y = now.getFullYear()
   const m = now.getMonth() + 1
   const d = now.getDate()
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mi = String(now.getMinutes()).padStart(2, '0')
   return (
-    `\n\n【今天】${y}-${m}-${d}（周${WEEKDAY_CN[now.getDay()]}）。\n` +
+    `\n\n【现在】${y}-${m}-${d}（周${WEEKDAY_CN[now.getDay()]}）${hh}:${mi}。\n` +
     '【你能帮用户做事，要主动、无感地用工具，不必等她说「帮我记一下」】：\n' +
     '· 她提到要做的事/截止/约会（如「下周三交论文」「明天3点面试」）→ create_reminder（dueISO 本地时间，' +
-    '相对日期据「今天」推算；只给日期不给时间就只填日期）。\n' +
+    '相对日期据「现在」推算；只给日期不给时间就只填日期）。\n' +
     '· 她说做完了某事 → complete_reminder。\n' +
     '· 她提到重要日子（考试/回国/生日/纪念日）→ add_countdown。\n' +
     '· 她想每天定点被提醒（「每天9点提醒我背单词」）→ set_daily_reminder；不想要了 → cancel_daily_reminder。\n' +
+    '· 她想专注/番茄钟/陪学一段时间（「陪我专注25分钟」「学到下午3点」按「现在」时间换算分钟）→ start_focus；' +
+    '想停下 → stop_focus。\n' +
     '· 她提到自己在哪/搬家了 → set_location。\n' +
     '· 她想清静/被打扰够了 → set_supervision(false)；想恢复督促 → set_supervision(true)。\n' +
     '原则：能用工具落地的就别只回「好的」，要真的帮她办了再用一句话亲切告诉她；但纯闲聊别硬塞工具。'
@@ -322,6 +326,14 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
       } else {
         lines.push('没找到对应的提醒呢，要不告诉我具体几点的那条？🐶')
       }
+    } else if (call.name === 'start_focus') {
+      const raw = Number(args.minutes)
+      const mins = Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
+      startFocus(mins)
+      lines.push(`好，陪你专注 ${mins} 分钟，加油！我在旁边看着你🐶`)
+    } else if (call.name === 'stop_focus') {
+      stopFocus()
+      lines.push('好，先停下专注啦，累了就歇会儿，随时叫我继续🐶')
     }
   }
   return lines.join('\n')
@@ -686,14 +698,15 @@ function clearPomodoro(): void {
   pomodoroTimeout = null
 }
 
-ipcMain.handle('pomodoro:state', () => loadStreak())
-ipcMain.handle('pomodoro:start', (_e, minutes: number) => {
+/** 启动专注：可由设置按钮或对话工具调用。返回 endAt 毫秒。 */
+function startFocus(minutes: number): number {
   clearPomodoro()
   const mins =
     Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
   const endAt = Date.now() + mins * 60_000
   setMood('thinking') // 专注期间小狗陪学（看书/老师 gif）
   petWindow?.webContents.send('pet:focus', endAt) // 头顶持续倒计时
+  chatWindow?.webContents.send('pomodoro:started', endAt) // 同步聊天窗按钮状态
   pomodoroTimeout = setTimeout(
     () => {
       clearPomodoro()
@@ -706,11 +719,19 @@ ipcMain.handle('pomodoro:start', (_e, minutes: number) => {
     mins * 60_000
   )
   return endAt
-})
-ipcMain.handle('pomodoro:stop', () => {
+}
+
+function stopFocus(): void {
   clearPomodoro()
   petWindow?.webContents.send('pet:focus', 0)
+  chatWindow?.webContents.send('pomodoro:stopped')
   setMood('idle')
+}
+
+ipcMain.handle('pomodoro:state', () => loadStreak())
+ipcMain.handle('pomodoro:start', (_e, minutes: number) => startFocus(minutes))
+ipcMain.handle('pomodoro:stop', () => {
+  stopFocus()
   return loadStreak()
 })
 

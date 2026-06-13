@@ -403,10 +403,14 @@ pomoBtn.addEventListener('click', async () => {
     return
   }
   const minutes = Math.min(Math.max(Number(pomoMin.value) || 25, 1), 120)
-  startPomoUi(await window.api.pomodoro.start(minutes))
+  void window.api.pomodoro.start(minutes) // UI 由 onStarted 事件驱动（对话工具启动时也能同步）
 })
 
-// 主进程计时到点 → 庆祝消息走 onProactive，这里收 streak 刷新并复位按钮。
+// 专注开始（按钮或对话工具触发）→ 同步按钮倒计时。
+window.api.pomodoro.onStarted((endAt) => startPomoUi(endAt))
+// 中途被对话工具停止 → 复位按钮。
+window.api.pomodoro.onStopped(() => stopPomoUi())
+// 计时到点 → 庆祝消息走 onProactive，这里收 streak 刷新并复位按钮。
 window.api.pomodoro.onDone((s) => {
   stopPomoUi()
   renderStreak(s)

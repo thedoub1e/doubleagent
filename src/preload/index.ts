@@ -66,6 +66,12 @@ const api = {
     state: (): Promise<StreakView> => ipcRenderer.invoke('pomodoro:state'),
     onDone: (cb: (state: StreakView) => void): void => {
       ipcRenderer.on('pomodoro:done', (_e, state: StreakView) => cb(state))
+    },
+    onStarted: (cb: (endAt: number) => void): void => {
+      ipcRenderer.on('pomodoro:started', (_e, endAt: number) => cb(endAt))
+    },
+    onStopped: (cb: () => void): void => {
+      ipcRenderer.on('pomodoro:stopped', () => cb())
     }
   },
 

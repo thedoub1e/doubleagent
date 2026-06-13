@@ -140,7 +140,28 @@ export const cancelDailyReminderTool: Tool = defineTool(
   }
 )
 
-/** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置；绝不引 file/bash）。 */
+/** 「开始专注」工具：用户想用番茄钟专注/被陪学一段时间时启动计时。 */
+export const startFocusTool: Tool = defineTool(
+  'start_focus',
+  '当用户想开始专注/番茄钟/让你陪她学习或工作一段时间时调用（如「陪我专注25分钟」「开始番茄钟」' +
+    '「学到下午3点」——按系统提示里的「现在」时间换算成分钟）。',
+  {
+    type: 'object',
+    properties: {
+      minutes: { type: 'number', description: '专注时长（分钟），1~120；没明说时长就用 25' }
+    },
+    required: ['minutes']
+  }
+)
+
+/** 「停止专注」工具：用户想中断当前番茄钟时。 */
+export const stopFocusTool: Tool = defineTool(
+  'stop_focus',
+  '当用户想停止/结束当前正在进行的专注（番茄钟）时调用，如「先停一下」「不专注了」。',
+  { type: 'object', properties: {} }
+)
+
+/** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置/番茄钟；绝不引 file/bash）。 */
 export const PET_TOOLS: Tool[] = [
   createReminderTool,
   completeReminderTool,
@@ -148,7 +169,9 @@ export const PET_TOOLS: Tool[] = [
   setLocationTool,
   setSupervisionTool,
   setDailyReminderTool,
-  cancelDailyReminderTool
+  cancelDailyReminderTool,
+  startFocusTool,
+  stopFocusTool
 ]
 
 // 送进模型的上下文最多保留最近 N 条，控制 token 成本（完整历史另存于 history）。
