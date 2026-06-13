@@ -16,6 +16,9 @@ const api = {
   onSay: (cb: (text: string) => void): void => {
     ipcRenderer.on('pet:say', (_e, text: string) => cb(text))
   },
+  onFocus: (cb: (endAt: number) => void): void => {
+    ipcRenderer.on('pet:focus', (_e, endAt: number) => cb(endAt))
+  },
   onVisual: (cb: (visual: PetVisual) => void): void => {
     ipcRenderer.on('pet:visual', (_e, visual: PetVisual) => cb(visual))
   },

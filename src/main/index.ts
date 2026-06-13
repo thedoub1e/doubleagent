@@ -692,12 +692,14 @@ ipcMain.handle('pomodoro:start', (_e, minutes: number) => {
   const mins =
     Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
   const endAt = Date.now() + mins * 60_000
-  setMood('thinking') // 专注期间小狗陪学（思考态）
+  setMood('thinking') // 专注期间小狗陪学（看书/老师 gif）
+  petWindow?.webContents.send('pet:focus', endAt) // 头顶持续倒计时
   pomodoroTimeout = setTimeout(
     () => {
       clearPomodoro()
       const next = recordCompletion(loadStreak(), new Date())
       saveStreak(next)
+      petWindow?.webContents.send('pet:focus', 0) // 先结束倒计时，再冒庆祝气泡
       pushProactive(`${streakLine(next)} 休息 5 分钟，活动一下再继续吧～`) // 庆祝(通知+蹦跳+情绪)
       chatWindow?.webContents.send('pomodoro:done', next)
     },
@@ -707,6 +709,7 @@ ipcMain.handle('pomodoro:start', (_e, minutes: number) => {
 })
 ipcMain.handle('pomodoro:stop', () => {
   clearPomodoro()
+  petWindow?.webContents.send('pet:focus', 0)
   setMood('idle')
   return loadStreak()
 })

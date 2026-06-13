@@ -16,6 +16,12 @@ function triggerChat(): void {
 // 主动消息：在小狗头顶冒出气泡（数秒自动淡出）。系统通知仍作后台兜底。
 window.api.onSay((text) => dog.say(text))
 
+// 番茄钟专注：头顶持续倒计时；endAt<=0 表示结束。
+window.api.onFocus((endAt) => {
+  if (endAt > 0) dog.setFocus(endAt)
+  else dog.endFocus()
+})
+
 const VALID_MOODS: Mood[] = ['idle', 'thinking', 'reply']
 window.api.onMood((mood) => {
   if ((VALID_MOODS as string[]).includes(mood)) dog.setMood(mood as Mood)

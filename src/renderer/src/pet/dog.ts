@@ -70,11 +70,20 @@ export interface Dog {
   flashAttention: () => void
   /** 主动消息时在小狗头顶冒出气泡，数秒后自动淡出。 */
   say: (text: string) => void
-  /** 立即收起气泡（如点开聊天时）。 */
+  /** 立即收起气泡（如点开聊天时）；专注倒计时进行中则忽略。 */
   hideBubble: () => void
+  /** 番茄钟专注：头顶气泡显示持续倒计时（到 endAt 毫秒时间戳），不自动消失。 */
+  setFocus: (endAt: number) => void
+  /** 结束专注倒计时并收起气泡。 */
+  endFocus: () => void
 }
 
-const BUBBLE_LINGER_MS = 8000
+const BUBBLE_LINGER_MS = 10000
+
+function fmtMMSS(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
 
 export function createDog(): Dog {
   const el = document.createElement('div')
@@ -202,13 +211,23 @@ export function createDog(): Dog {
   }
 
   let bubbleTimer: ReturnType<typeof setTimeout> | null = null
+  let focusTimer: ReturnType<typeof setInterval> | null = null
+  let focusing = false
+
+  const showBubble = (text: string): void => {
+    bubble.textContent = text // textContent 而非 innerHTML：防 XSS（内容含模型输出）
+    bubble.hidden = false
+    void bubble.offsetWidth // 重排以触发淡入过渡
+    bubble.classList.add('is-show')
+  }
   const hideBubble = (): void => {
+    if (focusing) return // 专注倒计时进行中不收起
     if (bubbleTimer) {
       clearTimeout(bubbleTimer)
       bubbleTimer = null
     }
     bubble.classList.remove('is-show')
-    // 等淡出动画结束再 hidden，避免突兀消失。
+    // 等淡出动画结束再 hidden，避免突兀消失（若期间又 show 了则跳过）。
     setTimeout(() => {
       if (!bubble.classList.contains('is-show')) bubble.hidden = true
     }, 220)
@@ -216,13 +235,39 @@ export function createDog(): Dog {
   const say = (text: string): void => {
     const t = text.trim()
     if (t.length === 0) return
-    bubble.textContent = t // textContent 而非 innerHTML：防 XSS（内容含模型输出）
-    bubble.hidden = false
-    void bubble.offsetWidth // 重排以触发淡入过渡
-    bubble.classList.add('is-show')
+    showBubble(t)
     if (bubbleTimer) clearTimeout(bubbleTimer)
     bubbleTimer = setTimeout(hideBubble, BUBBLE_LINGER_MS)
   }
 
-  return { el, chatButton, setMood, setImage, setSprite, setGifSet, flashAttention, say, hideBubble }
+  const endFocus = (): void => {
+    focusing = false
+    if (focusTimer) {
+      clearInterval(focusTimer)
+      focusTimer = null
+    }
+    hideBubble()
+  }
+  const setFocus = (endAt: number): void => {
+    if (bubbleTimer) clearTimeout(bubbleTimer)
+    if (focusTimer) clearInterval(focusTimer)
+    focusing = true
+    const tick = (): void => showBubble(`🍅 专注中 ${fmtMMSS(endAt - Date.now())}`)
+    tick()
+    focusTimer = setInterval(tick, 1000)
+  }
+
+  return {
+    el,
+    chatButton,
+    setMood,
+    setImage,
+    setSprite,
+    setGifSet,
+    flashAttention,
+    say,
+    hideBubble,
+    setFocus,
+    endFocus
+  }
 }

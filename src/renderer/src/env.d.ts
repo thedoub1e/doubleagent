@@ -36,6 +36,7 @@ interface DoubleAgentApi {
   onMood: (cb: (mood: string) => void) => void
   onAttention: (cb: () => void) => void
   onSay: (cb: (text: string) => void) => void
+  onFocus: (cb: (endAt: number) => void) => void
   onVisual: (cb: (visual: PetVisual) => void) => void
   pickPetImage: () => Promise<PublicConfigView>
   resetPetImage: () => Promise<PublicConfigView>
