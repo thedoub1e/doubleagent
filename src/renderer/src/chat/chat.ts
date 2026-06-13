@@ -17,27 +17,6 @@ root.innerHTML = `
     </header>
 
     <div class="settings" id="settings" hidden>
-      <label class="field">
-        <span>模型源</span>
-        <select id="sel-provider">${PROVIDER_PRESETS.map((p) => `<option value="${p.id}">${p.label}</option>`).join('')}</select>
-      </label>
-      <label class="field">
-        <span>模型</span>
-        <select id="sel-model"></select>
-      </label>
-      <label class="field">
-        <span>记忆模型（后台记笔记用，可选更便宜的；留空＝跟随主模型）</span>
-        <select id="sel-memory-model"></select>
-      </label>
-      <label class="field" id="field-baseurl" hidden>
-        <span>接口地址 baseURL</span>
-        <input id="inp-baseurl" type="text" placeholder="https://..." autocomplete="off" />
-      </label>
-      <label class="field">
-        <span>API Key</span>
-        <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
-      </label>
-      <p class="settings__note">提醒、天气位置、监督开关都可以直接跟小狗说，比如「每天9点提醒我学习」「我在马德里」「今天别管我了」🐶</p>
       <div class="pomodoro">
         <div class="pomo-head">
           <span>🍅 番茄钟陪学</span>
@@ -57,9 +36,35 @@ root.innerHTML = `
         </div>
         <div class="profile-list" id="profile-list"></div>
       </div>
+      <p class="settings__note">提醒、天气位置、监督开关都可以直接跟小狗说，比如「每天9点提醒我学习」「我在马德里」「今天别管我了」🐶</p>
+      <details class="setup" id="setup">
+        <summary>⚙ 模型设置（首次填一次）</summary>
+        <label class="field">
+          <span>模型源</span>
+          <select id="sel-provider">${PROVIDER_PRESETS.map((p) => `<option value="${p.id}">${p.label}</option>`).join('')}</select>
+        </label>
+        <label class="field">
+          <span>模型</span>
+          <select id="sel-model"></select>
+        </label>
+        <label class="field">
+          <span>记忆模型（后台记笔记用，可选更便宜的；留空＝跟随主模型）</span>
+          <select id="sel-memory-model"></select>
+        </label>
+        <label class="field" id="field-baseurl" hidden>
+          <span>接口地址 baseURL</span>
+          <input id="inp-baseurl" type="text" placeholder="https://..." autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>API Key</span>
+          <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
+        </label>
+        <div class="settings__row">
+          <button class="primary-btn" id="btn-save">保存模型设置</button>
+        </div>
+      </details>
       <div class="settings__row">
         <button class="ghost-btn" id="btn-clear">清空对话</button>
-        <button class="primary-btn" id="btn-save">保存</button>
       </div>
       <p class="settings__hint" id="settings-hint"></p>
     </div>
@@ -172,6 +177,7 @@ function send(): void {
   const text = inputEl.value.trim()
   const images = pendingImages.slice()
   if (text.length === 0 && images.length === 0) return
+  if (!settingsEl.hidden) setSettingsOpen(false) // 发消息即回到对话
   addMessage('user', text.length > 0 ? text : '🖼️ [图片]')
   inputEl.value = ''
   autosize()
@@ -298,8 +304,13 @@ window.api.chat.onError((message) => {
 })
 
 // ---- 设置 ----
+// 设置打开时占满消息区（盖住对话，不再挤压聊天）；关闭时露出对话。
+function setSettingsOpen(open: boolean): void {
+  settingsEl.hidden = !open
+  msgsEl.hidden = open
+}
 function toggleSettings(): void {
-  settingsEl.hidden = !settingsEl.hidden
+  setSettingsOpen(settingsEl.hidden)
 }
 
 // ---- 「小狗眼中的你」画像 ----
@@ -355,8 +366,9 @@ async function loadConfig(): Promise<void> {
   void refreshVision()
   void loadProfileFacts()
   if (!cfg.hasApiKey) {
-    showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 Key。')
-    settingsEl.hidden = false
+    showBanner('还没设置 API Key —— 展开「模型设置」填入 Key。')
+    setSettingsOpen(true)
+    el<HTMLDetailsElement>('setup').open = true // 首次没 key 时自动展开模型设置
   }
 }
 

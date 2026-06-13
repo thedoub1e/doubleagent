@@ -84,8 +84,8 @@ body {
   color: var(--ink);
 }
 
-/* ---- 设置抽屉 ---- */
-/* 内容很长：限定最大高度 + 内部滚动，保证顶栏与输入栏始终可见、不被挤出窗口。 */
+/* ---- 设置面板 ---- */
+/* 打开时占满消息区（msgs 由 JS 隐藏），自身滚动；不再挤压聊天。 */
 .settings {
   padding: 14px;
   border-bottom: 1px solid var(--line);
@@ -93,9 +93,36 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 320px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  flex: none;
+}
+/* 模型设置折叠区（首次填一次，平时收起）。 */
+.setup {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 4px 10px;
+}
+.setup > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  padding: 6px 0;
+  list-style: none;
+  user-select: none;
+}
+.setup > summary::-webkit-details-marker {
+  display: none;
+}
+.setup > summary::before {
+  content: "▸ ";
+}
+.setup[open] > summary::before {
+  content: "▾ ";
+}
+.setup > .field {
+  margin-top: 8px;
 }
 .settings::-webkit-scrollbar {
   width: 8px;

@@ -67,8 +67,8 @@ loadDotEnv()
 
 const PET_WIDTH = 240
 const PET_HEIGHT = 380 // 多出的高度留给狗头顶的主动气泡（狗底部对齐，位置不变）
-const CHAT_WIDTH = 360
-const CHAT_HEIGHT = 520
+const CHAT_WIDTH = 440
+const CHAT_HEIGHT = 660
 const MARGIN = 24
 const GAP = 12
 const REPLY_LINGER_MS = 2500
@@ -168,10 +168,12 @@ function createChatWindow(): void {
   chatWindow = new BrowserWindow({
     width: CHAT_WIDTH,
     height: CHAT_HEIGHT,
+    minWidth: 360,
+    minHeight: 480,
     show: false,
     frame: false,
     transparent: true,
-    resizable: false,
+    resizable: true, // 可手动拖边改大小
     alwaysOnTop: true,
     skipTaskbar: true,
     fullscreenable: false,
@@ -210,11 +212,12 @@ function loadRenderer(win: BrowserWindow, entry: 'index' | 'chat'): void {
 function positionChatNearPet(): void {
   if (!chatWindow || !petWindow) return
   const petBounds = petWindow.getBounds()
+  const { width: cw, height: ch } = chatWindow.getBounds() // 用实际尺寸，尊重用户手动改大小
   const { workArea } = screen.getDisplayMatching(petBounds)
   // 默认放在小狗左侧、顶端对齐；越界则贴回工作区内。
-  let x = petBounds.x - CHAT_WIDTH - GAP
+  let x = petBounds.x - cw - GAP
   if (x < workArea.x + MARGIN) x = petBounds.x + petBounds.width + GAP
-  let y = petBounds.y + petBounds.height - CHAT_HEIGHT
+  let y = petBounds.y + petBounds.height - ch
   if (y < workArea.y + MARGIN) y = workArea.y + MARGIN
   chatWindow.setPosition(Math.round(x), Math.round(y))
 }
