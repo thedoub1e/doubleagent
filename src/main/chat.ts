@@ -211,6 +211,11 @@ interface CompletionResult {
   content?: Array<{ type: string; text?: string }>
 }
 
+/** 后台记忆任务（抽取/摘要）用的配置：同源、同 key，仅在设了 memoryModel 时换模型 id（省成本）。 */
+function memoryConfig(config: AppConfig): AppConfig {
+  return config.memoryModel.length > 0 ? { ...config, model: config.memoryModel } : config
+}
+
 /** 把一段对话 + 已有摘要融合成更新后的长期记忆摘要（非流式）。失败返回 null。 */
 export async function summarizeConversation(
   messages: ChatMessage[],
@@ -218,7 +223,7 @@ export async function summarizeConversation(
   config: AppConfig
 ): Promise<string | null> {
   if (config.apiKey.length === 0) return null
-  const built = await buildModel(config)
+  const built = await buildModel(memoryConfig(config))
   if ('error' in built) return null
   const { pi, model } = built
 
@@ -346,7 +351,7 @@ export async function extractProfile(
   config: AppConfig
 ): Promise<ProfileOp[]> {
   if (config.apiKey.length === 0) return []
-  const built = await buildModel(config)
+  const built = await buildModel(memoryConfig(config))
   if ('error' in built) return []
   const { pi, model } = built
 

@@ -12,6 +12,7 @@ interface PublicConfigView {
   hasSprite: boolean
   spriteSheet?: SpriteDims
   weatherCity: string
+  memoryModel: string
 }
 
 interface GifPoolsView {

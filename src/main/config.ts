@@ -52,6 +52,9 @@ export interface AppConfig {
   anniversaries: Anniversary[]
   // 天气城市（Open-Meteo 地理编码用，留空＝不播报天气）。早安简报里出门带伞/温差提醒。
   weatherCity: string
+  // 记忆抽取/摘要用的模型 id（与主模型同源、同 key）。留空＝跟随主模型。
+  // 用便宜档做后台抽取省成本；只换模型 id，不引第二个 key（小白零门槛）。
+  memoryModel: string
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -72,7 +75,8 @@ const DEFAULTS: AppConfig = {
   morningBriefing: { time: '08:30', enabled: true },
   eveningBriefing: { time: '22:00', enabled: true },
   anniversaries: [],
-  weatherCity: ''
+  weatherCity: '',
+  memoryModel: ''
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
@@ -88,6 +92,7 @@ export interface PublicConfig {
   hasSprite: boolean
   spriteSheet?: { rows: number; cols: number; fps: number }
   weatherCity: string
+  memoryModel: string
 }
 
 function configPath(): string {
@@ -137,6 +142,7 @@ export function publicConfig(): PublicConfig {
     spriteSheet: c.spriteSheet
       ? { rows: c.spriteSheet.rows, cols: c.spriteSheet.cols, fps: c.spriteSheet.fps }
       : undefined,
-    weatherCity: c.weatherCity
+    weatherCity: c.weatherCity,
+    memoryModel: c.memoryModel
   }
 }

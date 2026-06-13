@@ -247,7 +247,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
   - [x] `index.ts` 接线：onDone 触发 maybeExtractProfile / 注入 renderProfile 到人设 / 清对话清画像 / profile:get·update·delete·clear IPC
   - [x] preload 暴露 profile API（get/update/remove/clear/onChanged）
   - [x] 设置面板「小狗眼中的你」可看可编辑区块 + css：chat.ts 渲染画像(分类标签/推断标记)+逐条改(change→update)/删(×→remove)/清空；env.d.ts+preload 类型；onChanged 实时刷新；非 innerHTML 防 XSS
-  - [ ] 设置加可选「记忆模型」下拉（默认便宜档，留空复用主模型）—— 优化项，当前复用主模型可用
+  - [~] 设置加可选「记忆模型」下拉 —— **用户 2026-06-13 拍板：只留一个 key，别搞复杂**。落地=记忆模型在**主模型的同一个源/同一个 key** 下选一个模型 id 用于后台抽取(summarize/extractProfile)，**留空=跟随主模型**(现状兜底)。不加第二个 key/源(跨厂用便宜档的灵活度放弃，换小白零门槛)。
   - [~] 验证：typecheck/build/57测 全过；停顿/空闲时抽取(debounce)留优化；dev 实跑待集中验收
 - [ ] 线条小狗形象：从免费无水印合集(爱给网等)挑选素材，映射待机/思考/回复三态；自绘风格作 fallback（当前是自绘占位）
 - [x] 形象自定义：设置面板选图片/GIF→存 userData→data URL 推渲染层<img>(GIF自带动画)；可恢复默认自绘狗。即「现成线条小狗素材」的版权干净落地（用户自备图）

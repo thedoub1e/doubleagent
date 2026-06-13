@@ -25,6 +25,10 @@ root.innerHTML = `
         <span>模型</span>
         <select id="sel-model"></select>
       </label>
+      <label class="field">
+        <span>记忆模型（后台记笔记用，可选更便宜的；留空＝跟随主模型）</span>
+        <select id="sel-memory-model"></select>
+      </label>
       <label class="field" id="field-baseurl" hidden>
         <span>接口地址 baseURL</span>
         <input id="inp-baseurl" type="text" placeholder="https://..." autocomplete="off" />
@@ -101,6 +105,7 @@ const settingsEl = el<HTMLDivElement>('settings')
 const bannerEl = el<HTMLDivElement>('banner')
 const providerSel = el<HTMLSelectElement>('sel-provider')
 const modelSel = el<HTMLSelectElement>('sel-model')
+const memoryModelSel = el<HTMLSelectElement>('sel-memory-model')
 const baseUrlField = el<HTMLLabelElement>('field-baseurl')
 const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
@@ -109,11 +114,21 @@ const supervisionChk = el<HTMLInputElement>('chk-supervision')
 const weatherInput = el<HTMLInputElement>('inp-weather')
 const remindersEl = el<HTMLDivElement>('reminders')
 
-// 切源时：刷新模型下拉 + 按是否自定义源显示 baseURL 输入。
-function applyProvider(providerId: string, selectedModel?: string, baseUrl?: string): void {
+// 切源时：刷新模型下拉 + 记忆模型下拉 + 按是否自定义源显示 baseURL 输入。
+function applyProvider(
+  providerId: string,
+  selectedModel?: string,
+  baseUrl?: string,
+  memoryModel?: string
+): void {
   const preset = findPreset(providerId) ?? PROVIDER_PRESETS[0]
   modelSel.innerHTML = preset.models.map((m) => `<option value="${m}">${m}</option>`).join('')
   if (selectedModel && preset.models.includes(selectedModel)) modelSel.value = selectedModel
+  // 记忆模型与主模型同源、同 key：首项「跟随主模型」(value='')，其余是该源的模型。
+  memoryModelSel.innerHTML =
+    `<option value="">跟随主模型（默认）</option>` +
+    preset.models.map((m) => `<option value="${m}">${m}</option>`).join('')
+  memoryModelSel.value = memoryModel && preset.models.includes(memoryModel) ? memoryModel : ''
   const isCustom = preset.kind === 'openai-compatible'
   baseUrlField.hidden = !isCustom
   if (isCustom) {
@@ -301,7 +316,7 @@ async function loadProfileFacts(): Promise<void> {
 async function loadConfig(): Promise<void> {
   const cfg = await window.api.config.get()
   if (findPreset(cfg.provider)) providerSel.value = cfg.provider
-  applyProvider(providerSel.value, cfg.model, cfg.baseUrl)
+  applyProvider(providerSel.value, cfg.model, cfg.baseUrl, cfg.memoryModel)
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
   supervisionChk.checked = cfg.supervisionEnabled
@@ -323,6 +338,7 @@ async function saveConfig(): Promise<void> {
   const patch: Record<string, unknown> = {
     provider: providerSel.value,
     model: modelSel.value,
+    memoryModel: memoryModelSel.value,
     baseUrl: baseUrlInput.value.trim(),
     supervisionEnabled: supervisionChk.checked,
     weatherCity: weatherInput.value.trim(),
