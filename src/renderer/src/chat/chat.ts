@@ -42,8 +42,8 @@ root.innerHTML = `
         <span>主动监督（定时提醒 / 打卡）</span>
       </label>
       <label class="field">
-        <span>天气城市（早安播报天气 / 带伞）</span>
-        <input id="inp-weather" type="text" placeholder="如 New York / 北京（留空＝不播报）" autocomplete="off" />
+        <span>天气城市（留空＝自动按网络位置）</span>
+        <input id="inp-weather" type="text" placeholder="留空＝自动定位；也可手填 如 马德里 / New York" autocomplete="off" />
       </label>
       <div class="reminders" id="reminders"></div>
       <div class="pomodoro">
@@ -64,20 +64,6 @@ root.innerHTML = `
           <button class="ghost-btn ghost-btn--sm" id="btn-clear-profile">清空</button>
         </div>
         <div class="profile-list" id="profile-list"></div>
-      </div>
-      <div class="settings__row">
-        <button class="ghost-btn" id="btn-pick-image">选形象图 / GIF</button>
-        <button class="ghost-btn" id="btn-reset-image">恢复默认狗</button>
-      </div>
-      <div class="sprite-fields">
-        <label class="field field--sm"><span>行 / 状态</span><input id="sp-rows" type="number" min="1" value="3" /></label>
-        <label class="field field--sm"><span>列 / 帧</span><input id="sp-cols" type="number" min="1" value="4" /></label>
-        <label class="field field--sm"><span>帧率</span><input id="sp-fps" type="number" min="1" value="8" /></label>
-      </div>
-      <div class="settings__row">
-        <button class="ghost-btn" id="btn-pick-sprite">选精灵图</button>
-        <button class="ghost-btn" id="btn-apply-sprite">应用参数</button>
-        <button class="ghost-btn" id="btn-clear-sprite">清除精灵图</button>
       </div>
       <div class="settings__row">
         <button class="ghost-btn" id="btn-clear">清空对话</button>
@@ -323,11 +309,6 @@ async function loadConfig(): Promise<void> {
   weatherInput.value = cfg.weatherCity
   renderReminders(cfg.reminders)
   void loadProfileFacts()
-  if (cfg.spriteSheet) {
-    spRows.value = String(cfg.spriteSheet.rows)
-    spCols.value = String(cfg.spriteSheet.cols)
-    spFps.value = String(cfg.spriteSheet.fps)
-  }
   if (!cfg.hasApiKey) {
     showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 Key。')
     settingsEl.hidden = false
@@ -380,20 +361,42 @@ inputEl.addEventListener('keydown', (e) => {
 el<HTMLButtonElement>('btn-settings').addEventListener('click', toggleSettings)
 el<HTMLButtonElement>('btn-close').addEventListener('click', () => window.api.chat.close())
 el<HTMLButtonElement>('btn-save').addEventListener('click', saveConfig)
-el<HTMLButtonElement>('btn-clear').addEventListener('click', async () => {
+
+// 两步确认：破坏性操作(清空对话/清空画像)点一下变「确认?」，3 秒内再点才执行，防误触。
+// 用内联确认而非原生 confirm()，避免触发窗口失焦→自动隐藏。
+const CONFIRM_WINDOW_MS = 3000
+function confirmable(btn: HTMLButtonElement, confirmLabel: string, action: () => void): void {
+  const original = btn.textContent ?? ''
+  let armed = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const reset = (): void => {
+    armed = false
+    btn.textContent = original
+    btn.classList.remove('is-armed')
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+  }
+  btn.addEventListener('click', () => {
+    if (armed) {
+      reset()
+      action()
+      return
+    }
+    armed = true
+    btn.textContent = confirmLabel
+    btn.classList.add('is-armed')
+    timer = setTimeout(reset, CONFIRM_WINDOW_MS)
+  })
+}
+
+confirmable(el<HTMLButtonElement>('btn-clear'), '确认清空对话？', () => {
   window.api.chat.clear()
   msgsEl.innerHTML = ''
   settingsHint.textContent = '对话已清空'
 })
-el<HTMLButtonElement>('btn-pick-image').addEventListener('click', async () => {
-  const cfg = await window.api.pickPetImage()
-  settingsHint.textContent = cfg.hasPetImage ? '形象已更新 ✓' : '未选择图片'
-})
-el<HTMLButtonElement>('btn-reset-image').addEventListener('click', async () => {
-  await window.api.resetPetImage()
-  settingsHint.textContent = '已恢复默认狗 🐶'
-})
-el<HTMLButtonElement>('btn-clear-profile').addEventListener('click', async () => {
+confirmable(el<HTMLButtonElement>('btn-clear-profile'), '确认清空？', async () => {
   renderProfileFacts(await window.api.profile.clear())
   settingsHint.textContent = '小狗对你的记忆已清空'
 })
@@ -455,29 +458,6 @@ window.api.pomodoro.onDone((s) => {
 })
 
 void window.api.pomodoro.state().then(renderStreak)
-
-const spRows = el<HTMLInputElement>('sp-rows')
-const spCols = el<HTMLInputElement>('sp-cols')
-const spFps = el<HTMLInputElement>('sp-fps')
-function spriteDims(): SpriteDims {
-  return {
-    rows: Number(spRows.value) || 3,
-    cols: Number(spCols.value) || 4,
-    fps: Number(spFps.value) || 8
-  }
-}
-el<HTMLButtonElement>('btn-pick-sprite').addEventListener('click', async () => {
-  const cfg = await window.api.pickSprite(spriteDims())
-  settingsHint.textContent = cfg.hasSprite ? '精灵图已设置 ✓（每行一个状态）' : '未选择精灵图'
-})
-el<HTMLButtonElement>('btn-apply-sprite').addEventListener('click', async () => {
-  await window.api.applySprite(spriteDims())
-  settingsHint.textContent = '精灵图参数已应用'
-})
-el<HTMLButtonElement>('btn-clear-sprite').addEventListener('click', async () => {
-  await window.api.clearSprite()
-  settingsHint.textContent = '精灵图已清除'
-})
 
 void renderHistory()
 void loadConfig()

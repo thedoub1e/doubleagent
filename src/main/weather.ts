@@ -17,6 +17,13 @@ export interface DailyWeather {
 
 const GEOCODE_BASE = 'https://geocoding-api.open-meteo.com/v1/search'
 const FORECAST_BASE = 'https://api.open-meteo.com/v1/forecast'
+// IP 定位：免费无密钥；lang=zh-CN 直接给中文地名（如 马德里/西班牙）。仅 HTTP（免费档），
+// 主进程 fetch 不受 CSP 限制；只在用户没手填城市时用，自动按网络位置播报天气。
+const IP_GEO_URL = 'http://ip-api.com/json/?lang=zh-CN&fields=status,message,country,city,lat,lon'
+
+export function buildIpGeoUrl(): string {
+  return IP_GEO_URL
+}
 
 // 按输入文字选地理编码语言：含中日韩字 → zh，否则 → en。
 // （实测 language=zh 会把英文城市名错配，如 "New York"→约克(内布拉斯加)；language=en 又匹配不到中文名。）
@@ -51,6 +58,20 @@ export function parseGeocode(json: unknown): Geo | null {
   const lon = num(r.longitude)
   if (lat === null || lon === null) return null
   const name = typeof r.name === 'string' ? r.name : ''
+  return { name, latitude: lat, longitude: lon }
+}
+
+/** 解析 ip-api.com 定位响应。status≠success / 经纬度缺失返回 null；名字优先城市、退国家。 */
+export function parseIpGeo(json: unknown): Geo | null {
+  const o = json as Record<string, unknown>
+  if (!o || o.status !== 'success') return null
+  const lat = num(o.lat)
+  const lon = num(o.lon)
+  if (lat === null || lon === null) return null
+  const city = typeof o.city === 'string' ? o.city : ''
+  const country = typeof o.country === 'string' ? o.country : ''
+  const name = city || country
+  if (name.length === 0) return null
   return { name, latitude: lat, longitude: lon }
 }
 

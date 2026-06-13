@@ -298,15 +298,11 @@ body {
   flex: none;
 }
 
-.sprite-fields {
-  display: flex;
-  gap: 6px;
-}
-.field--sm {
-  flex: 1;
-}
-.field--sm input {
-  width: 100%;
+/* 两步确认按钮的「确认?」态：醒目红框提示，再点一次才执行。 */
+.ghost-btn.is-armed {
+  color: var(--error);
+  border-color: var(--error);
+  background: rgba(192, 57, 43, 0.08);
 }
 
 .settings__row {

@@ -2,11 +2,13 @@ import { describe, expect, test } from 'vitest'
 import {
   buildForecastUrl,
   buildGeocodeUrl,
+  buildIpGeoUrl,
   composeWeatherLine,
   geocodeLanguage,
   isRainy,
   parseForecast,
   parseGeocode,
+  parseIpGeo,
   weatherAdvice,
   weatherCodeText,
   type DailyWeather
@@ -51,6 +53,31 @@ describe('parseGeocode', () => {
     expect(parseGeocode({ results: [] })).toBeNull()
     expect(parseGeocode({})).toBeNull()
     expect(parseGeocode({ results: [{ name: 'x' }] })).toBeNull()
+  })
+})
+
+describe('IP 定位', () => {
+  test('buildIpGeoUrl 带中文语言 + 经纬度字段', () => {
+    const url = buildIpGeoUrl()
+    expect(url).toContain('lang=zh-CN')
+    expect(url).toContain('lat')
+    expect(url).toContain('lon')
+  })
+  test('parseIpGeo: success 取中文城市 + 经纬度', () => {
+    const json = { status: 'success', country: '西班牙', city: '马德里', lat: 40.42, lon: -3.7 }
+    expect(parseIpGeo(json)).toEqual({ name: '马德里', latitude: 40.42, longitude: -3.7 })
+  })
+  test('parseIpGeo: 无城市时退国家名', () => {
+    expect(parseIpGeo({ status: 'success', country: '中国', city: '', lat: 39.9, lon: 116.4 })).toEqual({
+      name: '中国',
+      latitude: 39.9,
+      longitude: 116.4
+    })
+  })
+  test('parseIpGeo: 失败 / 缺经纬度 → null', () => {
+    expect(parseIpGeo({ status: 'fail', message: 'private range' })).toBeNull()
+    expect(parseIpGeo({ status: 'success', city: '某地' })).toBeNull()
+    expect(parseIpGeo({})).toBeNull()
   })
 })
 

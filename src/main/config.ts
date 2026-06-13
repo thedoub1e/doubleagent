@@ -50,7 +50,7 @@ export interface AppConfig {
   eveningBriefing: Briefing
   // 倒数日 / 纪念日（考试、回国、在一起纪念日…）。早安简报里提示。
   anniversaries: Anniversary[]
-  // 天气城市（Open-Meteo 地理编码用，留空＝不播报天气）。早安简报里出门带伞/温差提醒。
+  // 天气城市（Open-Meteo 地理编码用，留空＝自动按 IP 定位）。早安简报里出门带伞/温差提醒。
   weatherCity: string
   // 记忆抽取/摘要用的模型 id（与主模型同源、同 key）。留空＝跟随主模型。
   // 用便宜档做后台抽取省成本；只换模型 id，不引第二个 key（小白零门槛）。

@@ -4,14 +4,17 @@
 import {
   buildForecastUrl,
   buildGeocodeUrl,
+  buildIpGeoUrl,
   composeWeatherLine,
   parseForecast,
   parseGeocode,
+  parseIpGeo,
   type Geo
 } from './weather'
 
 const TIMEOUT_MS = 6000
 const geoCache = new Map<string, Geo>()
+let ipGeoCache: Geo | null = null
 
 async function getJson(url: string): Promise<unknown | null> {
   const ac = new AbortController()
@@ -39,12 +42,22 @@ async function resolveGeo(city: string): Promise<Geo | null> {
   return geo
 }
 
-/** 取今天天气的关心文案。城市为空 / 网络失败 / 无结果 → null。 */
+/** 按 IP 自动定位（内存缓存：同一会话只查一次成功结果）。失败 → null。 */
+async function resolveGeoByIp(): Promise<Geo | null> {
+  if (ipGeoCache) return ipGeoCache
+  const json = await getJson(buildIpGeoUrl())
+  const geo = json ? parseIpGeo(json) : null
+  if (geo) ipGeoCache = geo
+  return geo
+}
+
+/** 取今天天气的关心文案。城市留空＝自动按 IP 定位；网络失败 / 无结果 → null。 */
 export async function weatherLine(city: string): Promise<string | null> {
-  const geo = await resolveGeo(city)
+  const trimmed = city.trim()
+  const geo = trimmed.length > 0 ? await resolveGeo(trimmed) : await resolveGeoByIp()
   if (!geo) return null
   const json = await getJson(buildForecastUrl(geo.latitude, geo.longitude))
   const w = json ? parseForecast(json) : null
   if (!w) return null
-  return composeWeatherLine(geo.name || city.trim(), w)
+  return composeWeatherLine(geo.name || trimmed || '当前位置', w)
 }

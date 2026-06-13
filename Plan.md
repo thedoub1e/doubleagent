@@ -237,7 +237,8 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
     - [x] 解锁问候(powerMonitor) + 久坐感知(idle)：presence.ts 纯函数(evaluatePresence 久坐/久别归来状态机+shouldGreet 冷却门控+pickGreeting 时段问候)+6测；index startPresenceWatcher 监听 unlock-screen/resume 问候(30min冷却)+每分钟查 getSystemIdleTime(连续活跃50min→起来走走/每段一次,空闲5min重置,久别15min回来打招呼)。均 gated by supervisionEnabled
     - [x] 主动找话题(bounded pulse,支柱①久未聊→先开口)：pulse.ts 纯函数(shouldPulse 清醒时段9-22+静默≥4h+冷却≥3h+每日≤3+跨天归零;registerInteraction/registerPulse;pickOpenerFallback)+10测；chat.ts composeOpener(非流式以人设口吻开一句,失败兜底);index startPulseWatcher 每5min查(人在场=idle≤5min才开口,避免自言自语)+chat:send registerInteraction 刷新静默+composePersona 抽取复用。gated by supervisionEnabled
     - [x] 情绪标签命中 gif 桶(amica [emotion] 思路)：shared/emotion.ts 纯函数(parseEmotion 只剥开头已知中文情绪标签、不吃 Markdown 链接;emotionToPetState 兴奋→attention/思考→thinking/余→reply;EMOTION_INSTRUCTION 人设指令)+6测；index composePersona 追加指令+onDone parseEmotion 剥标签存干净文本+driveReplyMood 按情绪命中桶+pushProactive 剥标签；renderer 流式途中即时剥(不闪)。**比按文件名关键词猜更准**——模型自报情绪直接命中桶
-    - [x] 天气(出门带伞/温差)：weather.ts 纯函数(Open-Meteo 免费无密钥;buildGeocodeUrl 按输入文字选语言 zh/en 避免英文名错配/buildForecastUrl/parseGeocode/parseForecast/weatherCodeText WMO码→中文/isRainy/weatherAdvice 带伞·保暖·防晒·温差最多2条/composeWeatherLine)+15测；weatherNet.ts fetch层(6s超时+坐标内存缓存,失败安静返null);config.weatherCity+设置面板城市输入;早安简报集成天气行。实机验通(New York/北京 geocode+forecast 真实返回正确)
+    - [x] 天气(出门带伞/温差)：weather.ts 纯函数(Open-Meteo 免费无密钥;buildGeocodeUrl 按输入文字选语言 zh/en 避免英文名错配/buildForecastUrl/parseGeocode/parseForecast/weatherCodeText WMO码→中文/isRainy/weatherAdvice 带伞·保暖·防晒·温差最多2条/composeWeatherLine)+19测；weatherNet.ts fetch层(6s超时+坐标内存缓存,失败安静返null);config.weatherCity+设置面板城市输入;早安简报集成天气行。实机验通(New York/北京 geocode+forecast 真实返回正确)
+      - [x] (用户 2026-06-13 要)IP 自动定位：城市留空＝按 IP 自动定位(ip-api.com 免费无密钥 lang=zh-CN 出中文地名如「马德里」+经纬度),填城市＝手动覆盖(VPN兜底)。weather.ts buildIpGeoUrl/parseIpGeo+weatherNet resolveGeoByIp(会话缓存);设置文案改「留空＝自动按网络位置」
     - [x] 番茄钟 streak：pomodoro.ts 纯函数(recordCompletion 连续天数:同日累计/昨天+1/断签重置1,best保留;streakLine 庆祝文案+新纪录;跨月正确)+8测；pomodoroStore.ts 持久化(userData/pomodoro.json,重启不丢);index 主进程计时器(关聊天窗不丢)+pomodoro:start/stop/state IPC+到点 recordCompletion+pushProactive 庆祝(通知+蹦跳);preload+env.d.ts pomodoro API/StreakView;设置面板🍅区(分钟输入+开始/停止按钮+本地倒计时显示+连续天数/今日数)+css
     - [x] 本机时间关怀（喝水/护眼/该睡了）：**已被覆盖**——久坐感知(起来走走/喝口水)+晚安简报(该睡了)+解锁问候(时段关怀)已涵盖，不再单造冗余触发（YAGNI）
 - [ ] **🧠 主线一·记忆升级（次做，见「记忆升级方案」）**：结构化用户画像 + 离散事实库
@@ -253,6 +254,8 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [x] 形象自定义：设置面板选图片/GIF→存 userData→data URL 推渲染层<img>(GIF自带动画)；可恢复默认自绘狗。即「现成线条小狗素材」的版权干净落地（用户自备图）
 - [x] 聊天面板：类 Gemini 对话 UI（流式输出 + Markdown 渲染 + 外链系统浏览器打开）—— 独立聊天窗
   - [x] 实机修：①设置抽屉内容过长撑爆固定窗口、顶栏/输入栏被挤掉 → `.settings` 加 max-height:320px + 内部滚动；②（用户 2026-06-13 提）点聊天框外任意处即收起，不必再点小狗 → 聊天窗 `blur` 即 hide + 250ms 守护避免点小狗时 blur 隐藏又被 toggle 重开的竞态；文件选择框改 sheet 挂窗口避免误触发隐藏
+  - [x] （用户 2026-06-13 提）破坏性操作防误触：「清空对话」「清空画像(小狗眼中的你)」改两步确认(点→变「确认?」3秒内再点才执行,内联确认非原生 confirm 以免触发失焦隐藏)
+  - [x] （用户 2026-06-13 提）去掉「改形象」入口：移除设置面板 选形象图/GIF·恢复默认狗·精灵图(选/应用/清除+行列帧) 全部 UI(伴侣用 gif图/ 动图集即可,不该给改形象权限)。主进程 IPC 保留未删(死代码,无害);形象优先级仍 精灵图>单图>动图集>自绘
 - [~] 模型层：集成 `@earendil-works/pi-ai`（主进程跑，key 不进渲染层）；MiniMax 已接，余源待补预设
 - [x] 对话记忆：本地全量历史持久化 + 滚动摘要式长期记忆(memory.json,超24条把旧的压缩进摘要注入人设,保留最近10条原文;清空对话同时清记忆)
 - [x] 主动监督：轻量调度器(每30s查) + macOS 系统通知(Notification) + 可配置提醒/打卡(默认学习21:00/早睡23:30) + 触发时小狗蹦跳+主动说话进聊天；设置面板可开关/改时间文案
