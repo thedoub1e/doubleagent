@@ -85,6 +85,7 @@ body {
 }
 
 /* ---- 设置抽屉 ---- */
+/* 内容很长：限定最大高度 + 内部滚动，保证顶栏与输入栏始终可见、不被挤出窗口。 */
 .settings {
   padding: 14px;
   border-bottom: 1px solid var(--line);
@@ -92,6 +93,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  flex: none;
+}
+.settings::-webkit-scrollbar {
+  width: 8px;
+}
+.settings::-webkit-scrollbar-thumb {
+  background: rgba(20, 20, 24, 0.18);
+  border-radius: 4px;
 }
 .field {
   display: flex;

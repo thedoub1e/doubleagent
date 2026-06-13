@@ -66,6 +66,9 @@ const REPLY_LINGER_MS = 2500
 let petWindow: BrowserWindow | null = null
 let chatWindow: BrowserWindow | null = null
 let idleTimer: ReturnType<typeof setTimeout> | null = null
+// 失焦自动隐藏的时间戳：用于区分「点小狗时 blur 刚隐藏」与「主动想打开」，避免一点就被重开的竞态。
+let chatHiddenByBlurAt = 0
+const BLUR_TOGGLE_GUARD_MS = 250
 
 type Mood = 'idle' | 'thinking' | 'reply'
 
@@ -173,6 +176,13 @@ function createChatWindow(): void {
   chatWindow.setAlwaysOnTop(true, 'floating')
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   loadRenderer(chatWindow, 'chat')
+  // 点窗口外任意位置（桌面 / 小狗 / 其它 app）→ 失焦即收起，无需再点小狗。
+  // 原生文件框以 sheet 形式挂在窗口上（见 pick-image/pick-sprite），不会误触发隐藏。
+  chatWindow.on('blur', () => {
+    if (!chatWindow || !chatWindow.isVisible()) return
+    chatWindow.hide()
+    chatHiddenByBlurAt = Date.now()
+  })
   chatWindow.on('closed', () => {
     chatWindow = null
   })
@@ -204,11 +214,14 @@ function toggleChat(): void {
   if (!chatWindow) return
   if (chatWindow.isVisible()) {
     chatWindow.hide()
-  } else {
-    positionChatNearPet()
-    chatWindow.show()
-    chatWindow.focus()
+    return
   }
+  // 点小狗时它先抢焦点→聊天窗 blur 刚把自己隐藏；若紧接着的这次 toggle 在守护窗口内，
+  // 说明这其实是「点小狗想收起」，保持隐藏，不要又弹开。
+  if (Date.now() - chatHiddenByBlurAt < BLUR_TOGGLE_GUARD_MS) return
+  positionChatNearPet()
+  chatWindow.show()
+  chatWindow.focus()
 }
 
 function scheduleIdle(): void {
@@ -560,11 +573,15 @@ ipcMain.handle('profile:clear', () => {
 
 // ---- 自定义形象 ----
 ipcMain.handle('pet:pick-image', async () => {
-  const res = await dialog.showOpenDialog({
+  const opts = {
     title: '选一张小狗图片 / GIF',
-    properties: ['openFile'],
+    properties: ['openFile' as const],
     filters: [{ name: '图片', extensions: PET_IMAGE_EXTENSIONS }]
-  })
+  }
+  // 挂到聊天窗的 sheet：弹框期间窗口仍是 key window，不触发 blur 自动隐藏。
+  const res = chatWindow
+    ? await dialog.showOpenDialog(chatWindow, opts)
+    : await dialog.showOpenDialog(opts)
   const picked = res.canceled ? undefined : res.filePaths[0]
   if (picked) {
     saveConfig({ petImagePath: storePetImage(picked), spriteSheet: undefined })
@@ -585,11 +602,14 @@ interface SpriteDims {
   fps: number
 }
 ipcMain.handle('pet:pick-sprite', async (_e, dims: SpriteDims) => {
-  const res = await dialog.showOpenDialog({
+  const opts = {
     title: '选一张精灵图（行=状态，列=帧）',
-    properties: ['openFile'],
+    properties: ['openFile' as const],
     filters: [{ name: '图片', extensions: PET_IMAGE_EXTENSIONS }]
-  })
+  }
+  const res = chatWindow
+    ? await dialog.showOpenDialog(chatWindow, opts)
+    : await dialog.showOpenDialog(opts)
   const picked = res.canceled ? undefined : res.filePaths[0]
   if (picked) {
     const path = storePetImage(picked, 'pet-sprite')
