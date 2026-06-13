@@ -9,7 +9,8 @@ import {
   PET_TOOLS,
   runChat,
   summarizeConversation,
-  type ChatMessage
+  type ChatMessage,
+  type ToolResult
 } from './chat'
 import { clearProfile, loadProfile, saveProfile } from './profile'
 import { applyProfileOps, renderProfile } from './profileUtil'
@@ -264,15 +265,21 @@ function todayHint(now: Date): string {
   )
 }
 
-/** 执行模型发起的工具调用，返回给用户看的「人话回执」。仅处理白名单工具。 */
-async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise<string> {
-  const lines: string[] = []
+/** 执行模型发起的工具调用，返回每个调用的「结果文本」回喂模型（多轮 agent 循环）。仅处理白名单工具。 */
+async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise<ToolResult[]> {
+  const results: ToolResult[] = []
   for (const call of calls) {
     const args = call.arguments ?? {}
+    const out = (text: string): void => {
+      results.push({ toolCallId: call.id, toolName: call.name, text })
+    }
 
     if (call.name === 'create_reminder') {
       const title = String(args.title ?? '').trim()
-      if (title.length === 0) continue
+      if (title.length === 0) {
+        out('未提供提醒内容，已忽略')
+        continue
+      }
       const dueISO = typeof args.dueISO === 'string' ? args.dueISO : undefined
       let date: Date | undefined
       if (dueISO) {
@@ -283,45 +290,34 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
         }
       }
       const res = await osCreateReminder({ title, date, list: reminderList, ensureList: true })
-      lines.push(
-        res.ok
-          ? date
-            ? `好，${formatDueHuman(date)} 提醒你「${title}」🐶`
-            : `好，记下啦：「${title}」🐶`
-          : res.error
-      )
+      out(res.ok ? `已创建提醒「${title}」${date ? `，时间 ${formatDueHuman(date)}` : ''}` : `创建失败：${res.error}`)
     } else if (call.name === 'complete_reminder') {
       const title = String(args.title ?? '').trim()
-      if (title.length === 0) continue
+      if (title.length === 0) {
+        out('未提供事项标题')
+        continue
+      }
       const res = await osCompleteReminder(title, reminderList)
-      lines.push(res.ok ? `✅ 帮你把「${title}」勾掉啦，真棒🐶` : res.error)
+      out(res.ok ? `已把「${title}」标记完成` : `操作失败：${res.error}`)
     } else if (call.name === 'add_countdown') {
-      lines.push(addCountdown(String(args.name ?? '').trim(), String(args.date ?? '').trim(), Boolean(args.recurring)))
+      out(addCountdown(String(args.name ?? '').trim(), String(args.date ?? '').trim(), Boolean(args.recurring)))
     } else if (call.name === 'set_location') {
       const city = String(args.city ?? '').trim()
       saveConfig({ weatherCity: city })
-      lines.push(
-        city.length > 0
-          ? `好~以后给你报「${city}」的天气🐶`
-          : '好，我按你的网络位置自动给你报天气🐶'
-      )
+      out(city.length > 0 ? `已设定天气城市为「${city}」` : '已恢复为按网络位置自动定位')
     } else if (call.name === 'set_supervision') {
       const enabled = Boolean(args.enabled)
       saveConfig({ supervisionEnabled: enabled })
-      lines.push(enabled ? '好，我继续好好盯着你～有事提醒你🐶' : '好，我先不打扰你啦，需要我随时喊我🐶')
+      out(enabled ? '已开启主动监督（提醒/简报恢复）' : '已静音所有主动提醒与简报')
     } else if (call.name === 'set_daily_reminder') {
       const time = String(args.time ?? '').trim()
       const message = String(args.message ?? '').trim()
       const res = upsertDailyReminder(loadConfig().reminders, time, message)
       if (!res) {
-        lines.push('这个时间我没看懂呢，给我个像「09:00」这样的时间好嘛？🐶')
+        out('时间格式无法识别，需要 HH:MM')
       } else {
         saveConfig({ reminders: res.reminders })
-        lines.push(
-          res.updated
-            ? `好，${res.time} 的提醒改成「${message}」啦🐶`
-            : `记好啦，每天 ${res.time} 提醒你「${message}」🐶`
-        )
+        out(res.updated ? `已把 ${res.time} 的每日提醒改为「${message}」` : `已设定每日提醒：${res.time}「${message}」`)
       }
     } else if (call.name === 'cancel_daily_reminder') {
       const time = typeof args.time === 'string' ? args.time : undefined
@@ -329,22 +325,22 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
       const res = cancelDailyReminders(loadConfig().reminders, { time, keyword })
       if (res.removed > 0) {
         saveConfig({ reminders: res.reminders })
-        lines.push('好，那条每日提醒取消啦，不打扰你咯🐶')
+        out(`已取消 ${res.removed} 条每日提醒`)
       } else {
-        lines.push('没找到对应的提醒呢，要不告诉我具体几点的那条？🐶')
+        out('未找到匹配的每日提醒')
       }
     } else if (call.name === 'start_focus') {
       const raw = Number(args.minutes)
       const mins = Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
       startFocus(mins)
-      lines.push(`好，陪你专注 ${mins} 分钟，加油！我在旁边看着你🐶`)
+      out(`已开始专注 ${mins} 分钟`)
     } else if (call.name === 'stop_focus') {
       stopFocus()
-      lines.push('好，先停下专注啦，累了就歇会儿，随时叫我继续🐶')
+      out('已停止当前专注')
     } else if (call.name === 'schedule_focus') {
       const t = normalizeTime(String(args.time ?? ''))
       if (!t) {
-        lines.push('这个时间我没看懂呢…给我个像「09:00」的时间好嘛？🐶')
+        out('时间格式无法识别，需要 HH:MM')
       } else {
         const rawMin = Number(args.minutes)
         const mins =
@@ -352,7 +348,7 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
         const plan: FocusPlan = { id: `fp-${t.replace(':', '')}`, days: normalizeDays(args.days), time: t, minutes: mins, enabled: true }
         const others = loadConfig().focusPlans.filter((p) => p.time !== t)
         saveConfig({ focusPlans: [...others, plan] })
-        lines.push(`好，安排上啦：${describePlan(plan)}，到点我自动陪你开始🐶`)
+        out(`已安排自动专注计划：${describePlan(plan)}`)
       }
     } else if (call.name === 'cancel_focus_plan') {
       const t = normalizeTime(String(args.time ?? ''))
@@ -360,13 +356,23 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
       const kept = t ? before.filter((p) => p.time !== t) : before
       if (kept.length < before.length) {
         saveConfig({ focusPlans: kept })
-        lines.push('好，那条自动专注计划取消啦🐶')
+        out('已取消该自动专注计划')
       } else {
-        lines.push('没找到对应的专注计划呢，告诉我具体几点的那条？🐶')
+        out('未找到匹配的专注计划')
       }
+    } else if (call.name === 'list_reminders') {
+      const res = await osListReminders(reminderList)
+      if (!res.ok) out(`读取待办失败：${res.error}`)
+      else out(res.value.length > 0 ? `当前待办（${res.value.length} 条）：${res.value.join('、')}` : '当前没有未完成的待办')
+    } else if (call.name === 'get_weather') {
+      const city = String(args.city ?? '').trim() || loadConfig().weatherCity
+      const line = await weatherLine(city)
+      out(line ?? '暂时获取不到天气（可能没联网或定位失败）')
+    } else {
+      out(`未知工具：${call.name}`)
     }
   }
-  return lines.join('\n')
+  return results
 }
 
 /** 把一个倒数日/纪念日写进 config，返回人话回执。 */

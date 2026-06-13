@@ -9,13 +9,20 @@ export interface ChatMessage {
   content: string
 }
 
+/** 一次工具执行的结果，回喂给模型（多轮 agent 循环）。 */
+export interface ToolResult {
+  toolCallId: string
+  toolName: string
+  text: string
+}
+
 export interface StreamHandlers {
   onStart: () => void
   onDelta: (delta: string) => void
   onDone: (fullText: string) => void
   onError: (message: string) => void
-  /** 模型发起工具调用时回调（由调用方执行工具并返回给用户看的「人话回执」）。 */
-  onToolCalls?: (calls: ToolCall[]) => Promise<string>
+  /** 模型发起工具调用时回调：调用方执行工具，返回每个调用的结果（回喂模型继续）。 */
+  onToolCalls?: (calls: ToolCall[]) => Promise<ToolResult[]>
 }
 
 // 工具参数用「纯 JSON Schema 对象」声明，不静态 import pi-ai 的 TypeBox `Type`：
@@ -198,7 +205,26 @@ export const cancelFocusPlanTool: Tool = defineTool(
   }
 )
 
-/** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置/番茄钟；绝不引 file/bash）。 */
+/** 「查看待办」工具（读取型）：用户问她有哪些待办/今天要做什么时。 */
+export const listRemindersTool: Tool = defineTool(
+  'list_reminders',
+  '当用户问她有哪些待办/提醒/今天要做什么、或想回顾清单时调用，读取她的提醒清单。',
+  { type: 'object', properties: {} }
+)
+
+/** 「查天气」工具（读取型）：用户问天气/要不要带伞/冷不冷时。 */
+export const getWeatherTool: Tool = defineTool(
+  'get_weather',
+  '当用户问天气/要不要带伞/冷不冷热不热时调用，读取当前位置（或指定城市）的今日天气。',
+  {
+    type: 'object',
+    properties: {
+      city: { type: 'string', description: '可选：指定城市；不给则用她设定的城市或按网络位置自动定位' }
+    }
+  }
+)
+
+/** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置/番茄钟/查询；绝不引 file/bash）。 */
 export const PET_TOOLS: Tool[] = [
   createReminderTool,
   completeReminderTool,
@@ -210,11 +236,15 @@ export const PET_TOOLS: Tool[] = [
   startFocusTool,
   stopFocusTool,
   scheduleFocusTool,
-  cancelFocusPlanTool
+  cancelFocusPlanTool,
+  listRemindersTool,
+  getWeatherTool
 ]
 
 // 送进模型的上下文最多保留最近 N 条，控制 token 成本（完整历史另存于 history）。
 const MAX_CONTEXT_MESSAGES = 30
+// agent 多轮工具循环的安全上限：防止模型无限调工具。
+const MAX_TOOL_ROUNDS = 5
 
 let currentController: AbortController | null = null
 
@@ -279,46 +309,71 @@ export async function runChat(
   currentController = controller
 
   const recent = history.slice(-MAX_CONTEXT_MESSAGES)
-  const context = {
-    systemPrompt: config.systemPrompt,
-    messages: recent.map((m) => ({ role: m.role, content: m.content })),
-    ...(tools && tools.length > 0 ? { tools } : {})
-  }
+  // pi-ai 的 Message 数组；多轮里会追加 assistant 消息与 toolResult 消息。
+  const messages: unknown[] = recent.map((m) => ({
+    role: m.role,
+    content: m.content,
+    timestamp: 0
+  }))
 
   let full = ''
-  const toolCalls: ToolCall[] = []
   try {
     handlers.onStart()
-    const s = pi.stream(model as never, context as never, {
-      apiKey: config.apiKey,
-      signal: controller.signal
-    } as never)
 
-    for await (const event of s as AsyncIterable<{
-      type: string
-      delta?: string
-      error?: unknown
-      toolCall?: ToolCall
-    }>) {
-      if (event.type === 'text_delta' && typeof event.delta === 'string') {
-        full += event.delta
-        handlers.onDelta(event.delta)
-      } else if (event.type === 'toolcall_end' && event.toolCall) {
-        toolCalls.push(event.toolCall)
-      } else if (event.type === 'error') {
-        handlers.onError(String(event.error))
-        return
+    // 多轮 agent 循环：模型调工具 → 执行 → 结果回喂 → 再问，直到不再调工具（或到上限）。
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const context = {
+        systemPrompt: config.systemPrompt,
+        messages,
+        ...(tools && tools.length > 0 ? { tools } : {})
       }
+      const s = pi.stream(model as never, context as never, {
+        apiKey: config.apiKey,
+        signal: controller.signal
+      } as never)
+
+      const roundToolCalls: ToolCall[] = []
+      let assistantMsg: unknown = null
+      for await (const event of s as AsyncIterable<{
+        type: string
+        delta?: string
+        error?: unknown
+        toolCall?: ToolCall
+        message?: unknown
+      }>) {
+        if (event.type === 'text_delta' && typeof event.delta === 'string') {
+          full += event.delta
+          handlers.onDelta(event.delta)
+        } else if (event.type === 'toolcall_end' && event.toolCall) {
+          roundToolCalls.push(event.toolCall)
+        } else if (event.type === 'done') {
+          assistantMsg = event.message
+        } else if (event.type === 'error') {
+          handlers.onError(String(event.error))
+          return
+        }
+      }
+
+      // 没有工具调用 → 本轮就是最终回复，结束循环。
+      if (roundToolCalls.length === 0 || !handlers.onToolCalls) break
+
+      // 回放：把模型这轮的 assistant 消息（含 toolCall）原样追加，再追加各工具结果。
+      if (assistantMsg) messages.push(assistantMsg)
+      const results = await handlers.onToolCalls(roundToolCalls)
+      for (const r of results) {
+        messages.push({
+          role: 'toolResult',
+          toolCallId: r.toolCallId,
+          toolName: r.toolName,
+          content: [{ type: 'text', text: r.text }],
+          isError: false,
+          timestamp: 0
+        })
+      }
+      // 继续下一轮：模型据工具结果组织最终语言（读取型工具如查天气/待办在此生效）。
     }
 
-    // 有工具调用：交调用方执行 → 把「人话回执」补进聊天（不二次调模型，确定性 + 省 token）。
-    if (toolCalls.length > 0 && handlers.onToolCalls) {
-      const receipt = await handlers.onToolCalls(toolCalls)
-      if (receipt.length > 0) handlers.onDelta(receipt)
-      handlers.onDone(full.length > 0 ? `${full}\n\n${receipt}` : receipt)
-    } else {
-      handlers.onDone(full)
-    }
+    handlers.onDone(full)
   } catch (e) {
     if (controller.signal.aborted) {
       handlers.onDone(full)
