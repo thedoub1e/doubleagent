@@ -164,6 +164,129 @@ body {
   border-color: var(--accent);
 }
 
+/* ---- 「小狗眼中的你」画像面板 ---- */
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bot-bubble);
+}
+.profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.ghost-btn--sm {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.profile-empty {
+  margin: 2px 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.profile-fact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.profile-tag {
+  flex: none;
+  min-width: 34px;
+  padding: 2px 6px;
+  font-size: 10px;
+  text-align: center;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 6px;
+}
+.profile-content {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.profile-content:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.profile-del {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  border: none;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--ease) 150ms, color var(--ease) 150ms;
+}
+.profile-del:hover {
+  background: var(--error);
+  color: #fff;
+}
+
+.pomodoro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bot-bubble);
+}
+.pomo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.pomo-streak {
+  font-size: 11px;
+}
+.pomo-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pomo-row input {
+  width: 56px;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.pomo-unit {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.pomo-count {
+  flex: 1;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.pomo-row .ghost-btn {
+  flex: none;
+}
+
 .sprite-fields {
   display: flex;
   gap: 6px;

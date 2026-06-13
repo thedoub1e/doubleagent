@@ -51,7 +51,42 @@ const api = {
     get: (): Promise<PublicConfigView> => ipcRenderer.invoke('config:get'),
     set: (patch: Record<string, unknown>): Promise<PublicConfigView> =>
       ipcRenderer.invoke('config:set', patch)
+  },
+
+  // —— 番茄钟陪学 + 打卡 streak ——
+  pomodoro: {
+    start: (minutes: number): Promise<number> => ipcRenderer.invoke('pomodoro:start', minutes),
+    stop: (): Promise<StreakView> => ipcRenderer.invoke('pomodoro:stop'),
+    state: (): Promise<StreakView> => ipcRenderer.invoke('pomodoro:state'),
+    onDone: (cb: (state: StreakView) => void): void => {
+      ipcRenderer.on('pomodoro:done', (_e, state: StreakView) => cb(state))
+    }
+  },
+
+  // —— 「小狗眼中的你」画像 ——
+  profile: {
+    get: (): Promise<ProfileFactView[]> => ipcRenderer.invoke('profile:get'),
+    update: (id: string, content: string): Promise<ProfileFactView[]> =>
+      ipcRenderer.invoke('profile:update', id, content),
+    remove: (id: string): Promise<ProfileFactView[]> => ipcRenderer.invoke('profile:delete', id),
+    clear: (): Promise<ProfileFactView[]> => ipcRenderer.invoke('profile:clear'),
+    onChanged: (cb: () => void): void => {
+      ipcRenderer.on('profile:changed', () => cb())
+    }
   }
+}
+
+export interface ProfileFactView {
+  id: string
+  category: 'identity' | 'preference' | 'concern' | 'commitment' | 'trait'
+  content: string
+  inferred: boolean
+  factType: 'world' | 'experience' | 'opinion'
+  confidence: number
+  supersedes?: string
+  constant?: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 export interface ReminderView {
@@ -59,6 +94,13 @@ export interface ReminderView {
   time: string
   message: string
   enabled: boolean
+}
+
+export interface StreakView {
+  lastDate: string
+  currentStreak: number
+  bestStreak: number
+  todayCount: number
 }
 
 export interface SpriteDims {
@@ -91,6 +133,7 @@ export interface PublicConfigView {
   hasPetImage: boolean
   hasSprite: boolean
   spriteSheet?: SpriteDims
+  weatherCity: string
 }
 
 contextBridge.exposeInMainWorld('api', api)

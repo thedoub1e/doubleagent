@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
+import type { Anniversary } from './anniversary'
 
 // 默认人设：留学伴侣的陪伴小狗（陪伴 / 监督 / 聊天 / 解惑）。设置里可改。
 const DEFAULT_SYSTEM_PROMPT = [
@@ -26,6 +27,11 @@ export interface SpriteSheet {
   fps: number
 }
 
+export interface Briefing {
+  time: string // "HH:MM"
+  enabled: boolean
+}
+
 export interface AppConfig {
   provider: string
   model: string
@@ -36,6 +42,16 @@ export interface AppConfig {
   reminders: Reminder[]
   petImagePath?: string
   spriteSheet?: SpriteSheet
+  // 「对话转待办」写入的提醒事项列表名。默认写进一个一眼可辨的测试列表，
+  // 避免污染用户既有日程；正式用时可在设置里改成真实列表名。
+  reminderList: string
+  // 晨/晚简报：到点主动播报今天的待办（动态读 reminderList）。
+  morningBriefing: Briefing
+  eveningBriefing: Briefing
+  // 倒数日 / 纪念日（考试、回国、在一起纪念日…）。早安简报里提示。
+  anniversaries: Anniversary[]
+  // 天气城市（Open-Meteo 地理编码用，留空＝不播报天气）。早安简报里出门带伞/温差提醒。
+  weatherCity: string
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -51,7 +67,12 @@ const DEFAULTS: AppConfig = {
   apiKey: '',
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   supervisionEnabled: true,
-  reminders: DEFAULT_REMINDERS
+  reminders: DEFAULT_REMINDERS,
+  reminderList: '小狗测试_可删',
+  morningBriefing: { time: '08:30', enabled: true },
+  eveningBriefing: { time: '22:00', enabled: true },
+  anniversaries: [],
+  weatherCity: ''
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
@@ -66,6 +87,7 @@ export interface PublicConfig {
   hasPetImage: boolean
   hasSprite: boolean
   spriteSheet?: { rows: number; cols: number; fps: number }
+  weatherCity: string
 }
 
 function configPath(): string {
@@ -114,6 +136,7 @@ export function publicConfig(): PublicConfig {
     hasSprite: (c.spriteSheet?.path ?? '').length > 0,
     spriteSheet: c.spriteSheet
       ? { rows: c.spriteSheet.rows, cols: c.spriteSheet.cols, fps: c.spriteSheet.fps }
-      : undefined
+      : undefined,
+    weatherCity: c.weatherCity
   }
 }

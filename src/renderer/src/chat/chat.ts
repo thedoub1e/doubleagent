@@ -1,6 +1,7 @@
 import './chat.css'
 import { renderMarkdown } from './markdown'
 import { PROVIDER_PRESETS, findPreset } from '../../../shared/providers'
+import { parseEmotion } from '../../../shared/emotion'
 
 const root = document.getElementById('chat-root')
 if (!root) throw new Error('chat-root not found')
@@ -36,7 +37,30 @@ root.innerHTML = `
         <input type="checkbox" id="chk-supervision" />
         <span>主动监督（定时提醒 / 打卡）</span>
       </label>
+      <label class="field">
+        <span>天气城市（早安播报天气 / 带伞）</span>
+        <input id="inp-weather" type="text" placeholder="如 New York / 北京（留空＝不播报）" autocomplete="off" />
+      </label>
       <div class="reminders" id="reminders"></div>
+      <div class="pomodoro">
+        <div class="pomo-head">
+          <span>🍅 番茄钟陪学</span>
+          <span class="pomo-streak" id="pomo-streak"></span>
+        </div>
+        <div class="pomo-row">
+          <input id="pomo-min" type="number" min="1" max="120" value="25" />
+          <span class="pomo-unit">分钟</span>
+          <span class="pomo-count" id="pomo-count"></span>
+          <button class="ghost-btn" id="btn-pomo">开始专注</button>
+        </div>
+      </div>
+      <div class="profile-section">
+        <div class="profile-head">
+          <span>🐶 小狗眼中的你</span>
+          <button class="ghost-btn ghost-btn--sm" id="btn-clear-profile">清空</button>
+        </div>
+        <div class="profile-list" id="profile-list"></div>
+      </div>
       <div class="settings__row">
         <button class="ghost-btn" id="btn-pick-image">选形象图 / GIF</button>
         <button class="ghost-btn" id="btn-reset-image">恢复默认狗</button>
@@ -82,6 +106,7 @@ const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
 const supervisionChk = el<HTMLInputElement>('chk-supervision')
+const weatherInput = el<HTMLInputElement>('inp-weather')
 const remindersEl = el<HTMLDivElement>('reminders')
 
 // 切源时：刷新模型下拉 + 按是否自定义源显示 baseURL 输入。
@@ -163,14 +188,16 @@ window.api.chat.onDelta((delta) => {
   }
   activeBubble.classList.remove('is-typing')
   activeRaw += delta
-  setBubbleContent(activeBubble, 'assistant', activeRaw)
+  // 剥掉开头的 [情绪] 标签后再渲染（流式途中即时剥，避免标签一闪而过）。
+  setBubbleContent(activeBubble, 'assistant', parseEmotion(activeRaw).clean)
   msgsEl.scrollTop = msgsEl.scrollHeight
 })
 
 window.api.chat.onDone((fullText) => {
+  const clean = parseEmotion(fullText).clean
   if (activeBubble) {
     activeBubble.classList.remove('is-typing')
-    if (fullText.length > 0) setBubbleContent(activeBubble, 'assistant', fullText)
+    if (clean.length > 0) setBubbleContent(activeBubble, 'assistant', clean)
   }
   activeBubble = null
   setStreaming(false)
@@ -178,8 +205,8 @@ window.api.chat.onDone((fullText) => {
 })
 
 window.api.chat.onProactive((message) => {
-  // 小狗主动说话（提醒 / 打卡）：作为一条助手消息出现。
-  addMessage('assistant', message)
+  // 小狗主动说话（提醒 / 打卡）：作为一条助手消息出现（主进程已剥情绪标签，这里再保底一次）。
+  addMessage('assistant', parseEmotion(message).clean)
 })
 
 window.api.chat.onError((message) => {
@@ -227,6 +254,50 @@ function gatherReminders(): ReminderView[] {
   })
 }
 
+// ---- 「小狗眼中的你」画像 ----
+const profileListEl = el<HTMLDivElement>('profile-list')
+const CAT_LABEL: Record<string, string> = {
+  identity: '身份',
+  preference: '喜好',
+  concern: '在意',
+  commitment: '约定',
+  trait: '性格'
+}
+
+function renderProfileFacts(facts: ProfileFactView[]): void {
+  profileListEl.innerHTML = ''
+  if (facts.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'profile-empty'
+    empty.textContent = '还在慢慢认识你呢…多聊聊吧🐶'
+    profileListEl.appendChild(empty)
+    return
+  }
+  for (const f of facts) {
+    const row = document.createElement('div')
+    row.className = 'profile-fact'
+    const tag = document.createElement('span')
+    tag.className = 'profile-tag'
+    tag.textContent = f.inferred || f.confidence < 0.5 ? '推测' : (CAT_LABEL[f.category] ?? '')
+    const input = document.createElement('input')
+    input.className = 'profile-content'
+    input.type = 'text'
+    input.value = f.content // 经 .value 赋值，非 innerHTML → 无 XSS
+    input.addEventListener('change', () => void window.api.profile.update(f.id, input.value))
+    const del = document.createElement('button')
+    del.className = 'profile-del'
+    del.textContent = '×'
+    del.title = '让小狗忘记这条'
+    del.addEventListener('click', async () => renderProfileFacts(await window.api.profile.remove(f.id)))
+    row.append(tag, input, del)
+    profileListEl.appendChild(row)
+  }
+}
+
+async function loadProfileFacts(): Promise<void> {
+  renderProfileFacts(await window.api.profile.get())
+}
+
 async function loadConfig(): Promise<void> {
   const cfg = await window.api.config.get()
   if (findPreset(cfg.provider)) providerSel.value = cfg.provider
@@ -234,7 +305,9 @@ async function loadConfig(): Promise<void> {
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
   supervisionChk.checked = cfg.supervisionEnabled
+  weatherInput.value = cfg.weatherCity
   renderReminders(cfg.reminders)
+  void loadProfileFacts()
   if (cfg.spriteSheet) {
     spRows.value = String(cfg.spriteSheet.rows)
     spCols.value = String(cfg.spriteSheet.cols)
@@ -252,6 +325,7 @@ async function saveConfig(): Promise<void> {
     model: modelSel.value,
     baseUrl: baseUrlInput.value.trim(),
     supervisionEnabled: supervisionChk.checked,
+    weatherCity: weatherInput.value.trim(),
     reminders: gatherReminders()
   }
   if (keyInput.value.trim().length > 0) patch.apiKey = keyInput.value.trim()
@@ -303,6 +377,68 @@ el<HTMLButtonElement>('btn-reset-image').addEventListener('click', async () => {
   await window.api.resetPetImage()
   settingsHint.textContent = '已恢复默认狗 🐶'
 })
+el<HTMLButtonElement>('btn-clear-profile').addEventListener('click', async () => {
+  renderProfileFacts(await window.api.profile.clear())
+  settingsHint.textContent = '小狗对你的记忆已清空'
+})
+// 后台抽取出新画像时实时刷新面板。
+window.api.profile.onChanged(() => void loadProfileFacts())
+
+// ---- 🍅 番茄钟陪学 + 打卡 streak ----
+const pomoBtn = el<HTMLButtonElement>('btn-pomo')
+const pomoMin = el<HTMLInputElement>('pomo-min')
+const pomoStreakEl = el<HTMLSpanElement>('pomo-streak')
+const pomoCountEl = el<HTMLSpanElement>('pomo-count')
+let pomoEndAt = 0
+let pomoTick: ReturnType<typeof setInterval> | null = null
+
+function fmtMMSS(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
+function renderStreak(s: StreakView): void {
+  pomoStreakEl.textContent =
+    s.currentStreak > 0 ? `🔥 连续 ${s.currentStreak} 天 · 最长 ${s.bestStreak} 天` : '还没开始打卡哦'
+  pomoCountEl.textContent = s.todayCount > 0 ? `今天 ${s.todayCount} 🍅` : ''
+}
+
+function stopPomoUi(): void {
+  if (pomoTick) clearInterval(pomoTick)
+  pomoTick = null
+  pomoEndAt = 0
+  pomoBtn.textContent = '开始专注'
+  pomoMin.disabled = false
+}
+
+function startPomoUi(endAt: number): void {
+  pomoEndAt = endAt
+  pomoMin.disabled = true
+  const refresh = (): void => {
+    const left = pomoEndAt - Date.now()
+    pomoBtn.textContent = left > 0 ? `专注中 ${fmtMMSS(left)}（停止）` : '专注中…'
+  }
+  refresh()
+  pomoTick = setInterval(refresh, 1000)
+}
+
+pomoBtn.addEventListener('click', async () => {
+  if (pomoEndAt > 0) {
+    renderStreak(await window.api.pomodoro.stop())
+    stopPomoUi()
+    return
+  }
+  const minutes = Math.min(Math.max(Number(pomoMin.value) || 25, 1), 120)
+  startPomoUi(await window.api.pomodoro.start(minutes))
+})
+
+// 主进程计时到点 → 庆祝消息走 onProactive，这里收 streak 刷新并复位按钮。
+window.api.pomodoro.onDone((s) => {
+  stopPomoUi()
+  renderStreak(s)
+})
+
+void window.api.pomodoro.state().then(renderStreak)
 
 const spRows = el<HTMLInputElement>('sp-rows')
 const spCols = el<HTMLInputElement>('sp-cols')

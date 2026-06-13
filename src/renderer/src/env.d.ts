@@ -11,6 +11,7 @@ interface PublicConfigView {
   hasPetImage: boolean
   hasSprite: boolean
   spriteSheet?: SpriteDims
+  weatherCity: string
 }
 
 interface GifPoolsView {
@@ -55,6 +56,19 @@ interface DoubleAgentApi {
     get: () => Promise<PublicConfigView>
     set: (patch: Record<string, unknown>) => Promise<PublicConfigView>
   }
+  profile: {
+    get: () => Promise<ProfileFactView[]>
+    update: (id: string, content: string) => Promise<ProfileFactView[]>
+    remove: (id: string) => Promise<ProfileFactView[]>
+    clear: () => Promise<ProfileFactView[]>
+    onChanged: (cb: () => void) => void
+  }
+  pomodoro: {
+    start: (minutes: number) => Promise<number>
+    stop: () => Promise<StreakView>
+    state: () => Promise<StreakView>
+    onDone: (cb: (state: StreakView) => void) => void
+  }
 }
 
 declare global {
@@ -68,6 +82,24 @@ declare global {
     rows: number
     cols: number
     fps: number
+  }
+  interface StreakView {
+    lastDate: string
+    currentStreak: number
+    bestStreak: number
+    todayCount: number
+  }
+  interface ProfileFactView {
+    id: string
+    category: 'identity' | 'preference' | 'concern' | 'commitment' | 'trait'
+    content: string
+    inferred: boolean
+    factType: 'world' | 'experience' | 'opinion'
+    confidence: number
+    supersedes?: string
+    constant?: boolean
+    createdAt: number
+    updatedAt: number
   }
   interface Window {
     api: DoubleAgentApi

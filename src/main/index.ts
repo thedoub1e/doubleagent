@@ -1,14 +1,56 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, screen, shell } from 'electron'
 import { loadDotEnv } from './env'
 import { loadConfig, publicConfig, saveConfig, type Reminder } from './config'
-import { abortChat, runChat, summarizeConversation, type ChatMessage } from './chat'
+import {
+  abortChat,
+  composeOpener,
+  extractProfile,
+  PET_TOOLS,
+  runChat,
+  summarizeConversation,
+  type ChatMessage
+} from './chat'
+import { clearProfile, loadProfile, saveProfile } from './profile'
+import { applyProfileOps, renderProfile } from './profileUtil'
+import { formatDueHuman, parseIsoDate } from './reminders'
+import {
+  completeReminder as osCompleteReminder,
+  createReminder as osCreateReminder,
+  listReminders as osListReminders
+} from './remindersOs'
+import { listTodayEvents as osListTodayEvents } from './calendarOs'
+import { weatherLine } from './weatherNet'
+import { DEFAULT_FOCUS_MINUTES, MAX_FOCUS_MINUTES, recordCompletion, streakLine } from './pomodoro'
+import { loadStreak, saveStreak } from './pomodoroStore'
+import { eventLeadMinutes, isUpcoming } from './calendar'
+import { anniversaryLine, daysUntil, type Anniversary } from './anniversary'
+import { dayKey } from './scheduleUtil'
+import {
+  BREAK_IDLE_SEC,
+  evaluatePresence,
+  initialPresence,
+  pickGreeting,
+  shouldGreet,
+  type PresenceState
+} from './presence'
+import {
+  initialPulse,
+  pickOpenerFallback,
+  registerInteraction,
+  registerPulse,
+  shouldPulse,
+  type PulseState
+} from './pulse'
+import { addFiredKey, loadFiredKeys } from './firedStore'
+import type { ToolCall } from '@earendil-works/pi-ai'
 import { appendMessage, clearHistory, loadHistory } from './history'
 import { clearMemory, loadMemory, saveMemory } from './memory'
-import { startScheduler } from './scheduler'
+import { BRIEFING_EVENING_ID, BRIEFING_MORNING_ID, startScheduler } from './scheduler'
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
 import { existsSync } from 'node:fs'
 import { ASSET_DIR, hasAnyGif, loadGifPools, type PetGifPools } from './petAssets'
+import { EMOTION_INSTRUCTION, emotionToPetState, parseEmotion, type Emotion } from '../shared/emotion'
 
 // 启动即读项目 .env（让 MINIMAX_API_KEY 等可写进文件，不必走 UI）。
 loadDotEnv()
@@ -174,6 +216,73 @@ function scheduleIdle(): void {
   idleTimer = setTimeout(() => setMood('idle'), REPLY_LINGER_MS)
 }
 
+// ---- 对话转待办：工具调用执行 + 给模型注入今天日期 ----
+const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六']
+const DEFAULT_REMINDER_HOUR = 9 // 只给了日期没给时间时，默认早 9 点提醒
+
+/** 注入到人设末尾，让模型把「明天/下周二」算成 ISO，并知道有 create_reminder 工具。 */
+function todayHint(now: Date): string {
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const d = now.getDate()
+  return (
+    `\n\n【今天】${y}-${m}-${d}（周${WEEKDAY_CN[now.getDay()]}）。` +
+    '当用户想被提醒做某事/记待办/排日程时，调用 create_reminder 工具；' +
+    'dueISO 用本地时间，相对日期（明天、下周二等）据「今天」推算。'
+  )
+}
+
+/** 执行模型发起的工具调用，返回给用户看的「人话回执」。仅处理白名单工具。 */
+async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise<string> {
+  const lines: string[] = []
+  for (const call of calls) {
+    const args = call.arguments ?? {}
+
+    if (call.name === 'create_reminder') {
+      const title = String(args.title ?? '').trim()
+      if (title.length === 0) continue
+      const dueISO = typeof args.dueISO === 'string' ? args.dueISO : undefined
+      let date: Date | undefined
+      if (dueISO) {
+        const parsed = parseIsoDate(dueISO)
+        if (parsed) {
+          date = parsed.date
+          if (!parsed.hasTime) date.setHours(DEFAULT_REMINDER_HOUR, 0, 0, 0)
+        }
+      }
+      const res = await osCreateReminder({ title, date, list: reminderList, ensureList: true })
+      lines.push(
+        res.ok
+          ? date
+            ? `好，${formatDueHuman(date)} 提醒你「${title}」🐶`
+            : `好，记下啦：「${title}」🐶`
+          : res.error
+      )
+    } else if (call.name === 'complete_reminder') {
+      const title = String(args.title ?? '').trim()
+      if (title.length === 0) continue
+      const res = await osCompleteReminder(title, reminderList)
+      lines.push(res.ok ? `✅ 帮你把「${title}」勾掉啦，真棒🐶` : res.error)
+    } else if (call.name === 'add_countdown') {
+      lines.push(addCountdown(String(args.name ?? '').trim(), String(args.date ?? '').trim(), Boolean(args.recurring)))
+    }
+  }
+  return lines.join('\n')
+}
+
+/** 把一个倒数日/纪念日写进 config，返回人话回执。 */
+function addCountdown(name: string, date: string, recurring: boolean): string {
+  if (name.length === 0) return ''
+  const lead = daysUntil(date, new Date())
+  if (lead === null) return '这个日期我没看懂呢，能给我个具体年月日吗？🐶'
+  const ann: Anniversary = { id: `ann-${Date.now().toString(36)}`, name, date, recurring, enabled: true }
+  saveConfig({ anniversaries: [...loadConfig().anniversaries, ann] })
+  if (recurring) return `记好啦！以后每年「${name}」我都会记得💛`
+  return lead >= 0
+    ? `记好啦🎯 距离「${name}」还有 ${lead} 天，我帮你数着～`
+    : `记好啦！「${name}」是 ${date}（已经过去咯）`
+}
+
 // 历史超阈值时，把较旧的部分滚动压缩进长期记忆摘要（保留最近若干条原文）。
 const SUMMARIZE_THRESHOLD = 24
 const KEEP_RECENT = 10
@@ -188,6 +297,45 @@ async function maybeSummarize(): Promise<void> {
   if (summary) saveMemory({ summary, summarizedUpTo: upTo })
 }
 
+// 从最近一轮对话增量抽取结构化画像（信号门控：无新信息则模型返 [] → 不写）。
+async function maybeExtractProfile(): Promise<void> {
+  const history = loadHistory()
+  const recent = history.slice(-4) // 最近一轮上下文
+  if (recent.length === 0) return
+  const profile = loadProfile()
+  const ops = await extractProfile(recent, profile.facts, loadConfig())
+  if (ops.length === 0) return
+  saveProfile(applyProfileOps(profile, ops, Date.now()))
+  chatWindow?.webContents.send('profile:changed')
+}
+
+/** 组装人设：基础人设 + 长期记忆摘要(叙事背景) + 结构化画像(精确档案)。chat:send 与主动开口共用。 */
+function composePersona(base: ReturnType<typeof loadConfig>): string {
+  const memory = loadMemory()
+  const withMemory =
+    memory.summary.length > 0
+      ? `${base.systemPrompt}\n\n【你对用户的长期记忆】\n${memory.summary}`
+      : base.systemPrompt
+  const profileText = renderProfile(loadProfile())
+  const withProfile =
+    profileText.length > 0 ? `${withMemory}\n\n【你对用户的了解】\n${profileText}` : withMemory
+  // 末尾追加情绪标注指令：让模型每次以一个 [情绪] 标签开头，驱动形象命中对应 gif 桶。
+  return `${withProfile}${EMOTION_INSTRUCTION}`
+}
+
+/** 根据回复的情绪标签驱动小狗形象：兴奋→蹦跳(attention 桶)，思考→思考态，其余→回复态。 */
+function driveReplyMood(emotion: Emotion | null): void {
+  const state = emotion ? emotionToPetState(emotion) : 'reply'
+  if (state === 'attention') {
+    setMood('reply')
+    petWindow?.webContents.send('pet:attention')
+  } else if (state === 'thinking') {
+    setMood('thinking')
+  } else {
+    setMood('reply')
+  }
+}
+
 function showChat(): void {
   if (!chatWindow) createChatWindow()
   if (!chatWindow) return
@@ -196,19 +344,167 @@ function showChat(): void {
   chatWindow.focus()
 }
 
-// 主动监督：一条提醒触发 → 系统通知 + 小狗凑过来说话(写进历史并推聊天窗) + 情绪。
-function fireReminder(reminder: Reminder): void {
+// 主动监督：把一条主动消息推给用户 —— 系统通知 + 写进历史 + 推聊天窗 + 小狗凑过来 + 情绪。
+function pushProactive(message: string): void {
+  // 主动消息也可能带情绪标签（如 composeOpener 走人设指令）→ 先剥干净再展示。
+  const { clean } = parseEmotion(message)
+  if (clean.length === 0) return
   if (Notification.isSupported()) {
-    const n = new Notification({ title: '线条小狗 · 提醒', body: reminder.message })
+    const n = new Notification({ title: '线条小狗', body: clean })
     n.on('click', () => showChat())
     n.show()
   }
-  appendMessage({ role: 'assistant', content: reminder.message })
-  chatWindow?.webContents.send('chat:proactive', reminder.message)
+  appendMessage({ role: 'assistant', content: clean })
+  chatWindow?.webContents.send('chat:proactive', clean)
   // 先发情绪(reply)，再发 attention —— 动图集模式下「提醒」动图后到、压过 reply，先到先被覆盖。
   setMood('reply')
   petWindow?.webContents.send('pet:attention')
   scheduleIdle()
+}
+
+/** 合成晨/晚简报文案：动态读今天的待办（reminderList）+ 今天的日历行程。 */
+async function composeBriefing(kind: 'morning' | 'evening', reminderList: string): Promise<string> {
+  const remRes = await osListReminders(reminderList)
+  const titles = remRes.ok ? remRes.value : []
+  const todoBullets = titles.map((t) => `· ${t}`).join('\n')
+
+  if (kind === 'morning') {
+    // 早安简报额外带上今天的日历行程。
+    const calRes = await osListTodayEvents()
+    const events = calRes.ok ? calRes.value : []
+    const eventBullets = events
+      .map((e) => (e.time ? `· ${e.time} ${e.title}` : `· ${e.title}`))
+      .join('\n')
+    // 倒数日 / 纪念日（到里程碑天数或当天才出现）。
+    const now = new Date()
+    const annLines = loadConfig()
+      .anniversaries.map((a) => anniversaryLine(a, now))
+      .filter((l): l is string => l !== null)
+
+    // 天气（出门带伞 / 温差提醒）—— 网络失败或未设城市则安静跳过。
+    const weather = await weatherLine(loadConfig().weatherCity)
+
+    const parts = ['早安☀️']
+    if (weather) parts.push(weather)
+    if (annLines.length > 0) parts.push(annLines.join('\n'))
+    if (events.length > 0) parts.push(`今天的安排：\n${eventBullets}`)
+    if (titles.length > 0) parts.push(`别忘了的待办：\n${todoBullets}`)
+    if (events.length === 0 && titles.length === 0 && annLines.length === 0) {
+      parts.push('今天暂时没有安排，轻松的一天，也要好好吃饭哦～')
+    }
+    parts.push('一件件来，我陪你🐶')
+    return parts.join('\n')
+  }
+
+  return titles.length > 0
+    ? `今天辛苦啦～这些还没完成：\n${todoBullets}\n做完的记得跟我说一声，我帮你勾掉🐶`
+    : '今天的待办都清空啦，超棒！早点休息，我一直在～🐶🌙'
+}
+
+// 行程前置提醒：每 5 分钟查今天日历，事件前 ~30 分钟主动提醒一次（按天去重，复用 firedStore）。
+const EVENT_CHECK_INTERVAL_MS = 5 * 60_000
+const EVENT_LEAD_MINUTES = 30
+let eventTimer: ReturnType<typeof setInterval> | null = null
+
+function startEventWatcher(): void {
+  if (eventTimer) return
+  const tick = async (): Promise<void> => {
+    if (!loadConfig().supervisionEnabled) return
+    const res = await osListTodayEvents()
+    if (!res.ok) return
+    const now = new Date()
+    const fired = loadFiredKeys(now)
+    for (const ev of res.value) {
+      if (!ev.time || !isUpcoming(ev.time, now, EVENT_LEAD_MINUTES)) continue
+      // key 的日期段须在第二个 @ 段（firedStore 按 split('@')[1] 裁剪当天），故标题里的 @ 先替换。
+      const key = `event:${ev.title.replace(/@/g, '_')}@${dayKey(now)}`
+      if (fired.has(key)) continue
+      addFiredKey(key)
+      const lead = eventLeadMinutes(ev.time, now) ?? EVENT_LEAD_MINUTES
+      pushProactive(`⏰ 还有约 ${lead} 分钟就到「${ev.title}」(${ev.time}) 啦，准备一下哦🐶`)
+    }
+  }
+  eventTimer = setInterval(() => void tick(), EVENT_CHECK_INTERVAL_MS)
+  void tick()
+}
+
+// ---- 在场感知：解锁/唤醒问候 + 久坐感知（均 bounded，gated by supervisionEnabled） ----
+const IDLE_POLL_INTERVAL_MS = 60_000
+const SEDENTARY_MESSAGE = '已经坐了快一个小时啦，起来动一动、喝口水、看看远处吧，我等你回来🐶'
+let presenceState: PresenceState = initialPresence()
+let lastGreetAt: number | null = null // 解锁/唤醒/久别归来问候共用冷却，免叠加刷屏
+let presenceTimer: ReturnType<typeof setInterval> | null = null
+
+/** 解锁 / 唤醒 / 久别归来时，按冷却挑一句时段问候推给用户。 */
+function maybeGreet(now: Date): void {
+  if (!loadConfig().supervisionEnabled) return
+  if (!shouldGreet(lastGreetAt, now.getTime())) return
+  lastGreetAt = now.getTime()
+  pushProactive(pickGreeting(now.getHours()))
+}
+
+function startPresenceWatcher(): void {
+  if (presenceTimer) return
+  // 锁屏解锁 / 睡眠唤醒：白嫖系统事件直接问候（受冷却约束）。
+  powerMonitor.on('unlock-screen', () => maybeGreet(new Date()))
+  powerMonitor.on('resume', () => maybeGreet(new Date()))
+
+  // 每分钟看一次系统空闲时间，推进久坐 / 久别归来判定。
+  presenceTimer = setInterval(() => {
+    if (!loadConfig().supervisionEnabled) return
+    const now = Date.now()
+    const idleSeconds = powerMonitor.getSystemIdleTime()
+    const { state, action } = evaluatePresence(presenceState, idleSeconds, now)
+    presenceState = state
+    if (action === 'sedentary') {
+      pushProactive(SEDENTARY_MESSAGE)
+    } else if (action === 'returned' && shouldGreet(lastGreetAt, now)) {
+      lastGreetAt = now
+      pushProactive(pickGreeting(new Date(now).getHours()))
+    }
+  }, IDLE_POLL_INTERVAL_MS)
+}
+
+// ---- 主动找话题（bounded pulse）：久未聊 + 人在场 → 小狗先开口（gated by supervisionEnabled） ----
+const PULSE_CHECK_INTERVAL_MS = 5 * 60_000
+let pulseState: PulseState = initialPulse(Date.now())
+let pulseTimer: ReturnType<typeof setInterval> | null = null
+let pulseInFlight = false
+
+function startPulseWatcher(): void {
+  if (pulseTimer) return
+  const tick = async (): Promise<void> => {
+    if (pulseInFlight) return
+    if (!loadConfig().supervisionEnabled) return
+    const now = new Date()
+    // 人不在电脑前（长时间空闲）就别自言自语 —— 久未聊要指"在用电脑但没找我说话"。
+    if (powerMonitor.getSystemIdleTime() > BREAK_IDLE_SEC) return
+    if (!shouldPulse(pulseState, now)) return
+
+    pulseInFlight = true
+    try {
+      const base = loadConfig()
+      const recent = loadHistory().slice(-6)
+      const opener =
+        (await composeOpener(recent, { ...base, systemPrompt: composePersona(base) })) ??
+        pickOpenerFallback(now.getHours())
+      pulseState = registerPulse(pulseState, new Date())
+      pushProactive(opener)
+    } finally {
+      pulseInFlight = false
+    }
+  }
+  pulseTimer = setInterval(() => void tick(), PULSE_CHECK_INTERVAL_MS)
+}
+
+// 调度命中：简报 id → 动态合成；普通提醒 → 直接推其文案。
+async function fireScheduled(item: Reminder): Promise<void> {
+  if (item.id === BRIEFING_MORNING_ID || item.id === BRIEFING_EVENING_ID) {
+    const kind = item.id === BRIEFING_MORNING_ID ? 'morning' : 'evening'
+    pushProactive(await composeBriefing(kind, loadConfig().reminderList))
+  } else {
+    pushProactive(item.message)
+  }
 }
 
 // ---- 桌宠窗口交互 IPC ----
@@ -240,6 +536,26 @@ ipcMain.handle('chat:history', () => loadHistory())
 ipcMain.on('chat:clear', () => {
   clearHistory()
   clearMemory()
+  clearProfile()
+  chatWindow?.webContents.send('profile:changed')
+})
+
+// ---- 「小狗眼中的你」画像面板 IPC ----
+ipcMain.handle('profile:get', () => loadProfile().facts)
+ipcMain.handle('profile:delete', (_e, id: string) => {
+  saveProfile(applyProfileOps(loadProfile(), [{ op: 'DELETE', id }], Date.now()))
+  return loadProfile().facts
+})
+ipcMain.handle('profile:update', (_e, id: string, content: string) => {
+  const trimmed = (content ?? '').trim()
+  if (trimmed.length > 0) {
+    saveProfile(applyProfileOps(loadProfile(), [{ op: 'UPDATE', id, content: trimmed }], Date.now()))
+  }
+  return loadProfile().facts
+})
+ipcMain.handle('profile:clear', () => {
+  clearProfile()
+  return loadProfile().facts
 })
 
 // ---- 自定义形象 ----
@@ -295,6 +611,40 @@ ipcMain.handle('pet:clear-sprite', () => {
   sendPetVisual()
   return publicConfig()
 })
+// ---- 番茄钟陪学 + 打卡 streak ----
+// 计时器在主进程（关掉聊天窗也不丢）；渲染层只按 endAt 自行倒计时显示。
+let pomodoroTimeout: ReturnType<typeof setTimeout> | null = null
+
+function clearPomodoro(): void {
+  if (pomodoroTimeout) clearTimeout(pomodoroTimeout)
+  pomodoroTimeout = null
+}
+
+ipcMain.handle('pomodoro:state', () => loadStreak())
+ipcMain.handle('pomodoro:start', (_e, minutes: number) => {
+  clearPomodoro()
+  const mins =
+    Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
+  const endAt = Date.now() + mins * 60_000
+  setMood('thinking') // 专注期间小狗陪学（思考态）
+  pomodoroTimeout = setTimeout(
+    () => {
+      clearPomodoro()
+      const next = recordCompletion(loadStreak(), new Date())
+      saveStreak(next)
+      pushProactive(`${streakLine(next)} 休息 5 分钟，活动一下再继续吧～`) // 庆祝(通知+蹦跳+情绪)
+      chatWindow?.webContents.send('pomodoro:done', next)
+    },
+    mins * 60_000
+  )
+  return endAt
+})
+ipcMain.handle('pomodoro:stop', () => {
+  clearPomodoro()
+  setMood('idle')
+  return loadStreak()
+})
+
 ipcMain.on('chat:abort', () => abortChat())
 
 // ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
@@ -309,35 +659,47 @@ ipcMain.on('chat:send', async (_e, text: string) => {
     chatWindow?.webContents.send(channel, payload)
   }
 
-  // 注入长期记忆摘要到人设。
+  // 用户主动发消息 → 刷新静默计时（重置主动找话题的"久未聊"判定）。
+  pulseState = registerInteraction(pulseState, Date.now())
+
+  // 注入：人设 + 长期记忆 + 画像 + 今天日期(供 create_reminder 推算相对日期)。
   const base = loadConfig()
-  const memory = loadMemory()
-  const systemPrompt = memory.summary.length > 0
-    ? `${base.systemPrompt}\n\n【你对用户的长期记忆】\n${memory.summary}`
-    : base.systemPrompt
+  const systemPrompt = `${composePersona(base)}${todayHint(new Date())}`
 
   setMood('thinking')
-  await runChat(history, { ...base, systemPrompt }, {
-    onStart: () => send('chat:start'),
-    onDelta: (delta) => send('chat:delta', delta),
-    onDone: (fullText) => {
-      if (fullText.length > 0) appendMessage({ role: 'assistant', content: fullText })
-      send('chat:done', fullText)
-      setMood('reply')
-      scheduleIdle()
-      void maybeSummarize()
+  await runChat(
+    history,
+    { ...base, systemPrompt },
+    {
+      onStart: () => send('chat:start'),
+      onDelta: (delta) => send('chat:delta', delta),
+      onDone: (fullText) => {
+        // 剥掉开头的 [情绪] 标签：历史/展示都存干净文本，形象按情绪命中对应 gif 桶。
+        const { emotion, clean } = parseEmotion(fullText)
+        if (clean.length > 0) appendMessage({ role: 'assistant', content: clean })
+        send('chat:done', clean)
+        driveReplyMood(emotion)
+        scheduleIdle()
+        void maybeSummarize()
+        void maybeExtractProfile()
+      },
+      onError: (message) => {
+        send('chat:error', message)
+        setMood('idle')
+      },
+      onToolCalls: (calls) => handleToolCalls(calls, base.reminderList)
     },
-    onError: (message) => {
-      send('chat:error', message)
-      setMood('idle')
-    }
-  })
+    PET_TOOLS
+  )
 })
 
 app.whenReady().then(() => {
   createPetWindow()
   createChatWindow()
-  startScheduler(fireReminder)
+  startScheduler((item) => void fireScheduled(item))
+  startEventWatcher()
+  startPresenceWatcher()
+  startPulseWatcher()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createPetWindow()
