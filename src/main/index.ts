@@ -25,7 +25,14 @@ import { DEFAULT_FOCUS_MINUTES, MAX_FOCUS_MINUTES, recordCompletion, streakLine 
 import { loadStreak, saveStreak } from './pomodoroStore'
 import { eventLeadMinutes, isUpcoming } from './calendar'
 import { anniversaryLine, daysUntil, type Anniversary } from './anniversary'
-import { cancelDailyReminders, upsertDailyReminder } from './reminderRules'
+import { cancelDailyReminders, normalizeTime, upsertDailyReminder } from './reminderRules'
+import {
+  describePlan,
+  isPlanDue,
+  normalizeDays,
+  planDayFireKey,
+  type FocusPlan
+} from './focusPlanUtil'
 import { dayKey } from './scheduleUtil'
 import {
   BREAK_IDLE_SEC,
@@ -334,6 +341,29 @@ async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise
     } else if (call.name === 'stop_focus') {
       stopFocus()
       lines.push('好，先停下专注啦，累了就歇会儿，随时叫我继续🐶')
+    } else if (call.name === 'schedule_focus') {
+      const t = normalizeTime(String(args.time ?? ''))
+      if (!t) {
+        lines.push('这个时间我没看懂呢…给我个像「09:00」的时间好嘛？🐶')
+      } else {
+        const rawMin = Number(args.minutes)
+        const mins =
+          Number.isFinite(rawMin) && rawMin > 0 ? Math.min(Math.round(rawMin), MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
+        const plan: FocusPlan = { id: `fp-${t.replace(':', '')}`, days: normalizeDays(args.days), time: t, minutes: mins, enabled: true }
+        const others = loadConfig().focusPlans.filter((p) => p.time !== t)
+        saveConfig({ focusPlans: [...others, plan] })
+        lines.push(`好，安排上啦：${describePlan(plan)}，到点我自动陪你开始🐶`)
+      }
+    } else if (call.name === 'cancel_focus_plan') {
+      const t = normalizeTime(String(args.time ?? ''))
+      const before = loadConfig().focusPlans
+      const kept = t ? before.filter((p) => p.time !== t) : before
+      if (kept.length < before.length) {
+        saveConfig({ focusPlans: kept })
+        lines.push('好，那条自动专注计划取消啦🐶')
+      } else {
+        lines.push('没找到对应的专注计划呢，告诉我具体几点的那条？🐶')
+      }
     }
   }
   return lines.join('\n')
@@ -568,6 +598,38 @@ function startPulseWatcher(): void {
   pulseTimer = setInterval(() => void tick(), PULSE_CHECK_INTERVAL_MS)
 }
 
+// ---- 计划式番茄钟：到点自动进入专注（每天/每周几，按天去重，不补发） ----
+const FOCUS_PLAN_CHECK_MS = 30_000
+let focusPlanTimer: ReturnType<typeof setInterval> | null = null
+
+function startFocusPlanWatcher(): void {
+  if (focusPlanTimer) return
+  const tick = (): void => {
+    if (!loadConfig().supervisionEnabled) return
+    if (pomodoroTimeout) return // 已在专注中，不打断也不重开
+    const now = new Date()
+    const fired = loadFiredKeys(now)
+    for (const plan of loadConfig().focusPlans) {
+      if (!isPlanDue(plan, now)) continue
+      const key = planDayFireKey(plan, now)
+      if (fired.has(key)) continue
+      addFiredKey(key)
+      startFocus(plan.minutes) // 头顶倒计时气泡 + 聊天窗按钮同步
+      // 通知 + 写进聊天，但不抢头顶气泡（倒计时气泡已表明在专注）。
+      const msg = `到点啦~ 按计划陪你专注 ${plan.minutes} 分钟，加油💪🐶`
+      if (Notification.isSupported()) {
+        const n = new Notification({ title: '线条小狗', body: msg })
+        n.on('click', () => showChat())
+        n.show()
+      }
+      appendMessage({ role: 'assistant', content: msg })
+      chatWindow?.webContents.send('chat:proactive', msg)
+    }
+  }
+  focusPlanTimer = setInterval(tick, FOCUS_PLAN_CHECK_MS)
+  tick()
+}
+
 // 调度命中：简报 id → 动态合成；普通提醒 → 直接推其文案。
 async function fireScheduled(item: Reminder): Promise<void> {
   if (item.id === BRIEFING_MORNING_ID || item.id === BRIEFING_EVENING_ID) {
@@ -790,6 +852,7 @@ app.whenReady().then(() => {
   startEventWatcher()
   startPresenceWatcher()
   startPulseWatcher()
+  startFocusPlanWatcher()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createPetWindow()

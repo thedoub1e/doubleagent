@@ -22,9 +22,14 @@ export interface StreamHandlers {
 // pi-ai 只导出 ESM "import" 条件，在 Electron 主进程(CJS)里静态值导入会 ERR_PACKAGE_PATH_NOT_EXPORTED
 // （动态 import() 才行）。而 TypeBox 的 Type.Object(...) 运行时本就序列化成等价 JSON Schema，
 // 手写纯对象发给模型完全一致。`import type { Tool }` 是类型导入、编译期擦除，无运行时依赖。
+interface JsonSchemaProp {
+  type: string
+  description?: string
+  items?: { type: string }
+}
 interface JsonSchema {
   type: 'object'
-  properties: Record<string, { type: string; description?: string }>
+  properties: Record<string, JsonSchemaProp>
   required?: string[]
 }
 function defineTool(name: string, description: string, parameters: JsonSchema): Tool {
@@ -161,6 +166,38 @@ export const stopFocusTool: Tool = defineTool(
   { type: 'object', properties: {} }
 )
 
+/** 「计划专注」工具：用户有清晰的每天/每周学习计划，想到点自动进入专注时。 */
+export const scheduleFocusTool: Tool = defineTool(
+  'schedule_focus',
+  '当用户想按每天/每周的固定计划自动开始专注时调用（如「每天上午9点专注2小时」「周一三五晚8点学英语1小时」）。' +
+    '这是会到点自动开启番茄钟的计划；只想立刻开始一次用 start_focus。',
+  {
+    type: 'object',
+    properties: {
+      time: { type: 'string', description: '每次自动开始的时间 HH:MM，如 09:00、20:00' },
+      minutes: { type: 'number', description: '专注时长（分钟），1~120' },
+      days: {
+        type: 'array',
+        items: { type: 'number' },
+        description: '星期几列表，0=周日 1=周一 … 6=周六；每天则省略或给空数组。如周一三五＝[1,3,5]'
+      }
+    },
+    required: ['time', 'minutes']
+  }
+)
+
+/** 「取消专注计划」工具。 */
+export const cancelFocusPlanTool: Tool = defineTool(
+  'cancel_focus_plan',
+  '当用户想取消某条「计划式自动专注」时调用（如「别每天9点自动专注了」）。给时间定位要取消的那条。',
+  {
+    type: 'object',
+    properties: {
+      time: { type: 'string', description: '要取消的计划时间 HH:MM' }
+    }
+  }
+)
+
 /** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置/番茄钟；绝不引 file/bash）。 */
 export const PET_TOOLS: Tool[] = [
   createReminderTool,
@@ -171,7 +208,9 @@ export const PET_TOOLS: Tool[] = [
   setDailyReminderTool,
   cancelDailyReminderTool,
   startFocusTool,
-  stopFocusTool
+  stopFocusTool,
+  scheduleFocusTool,
+  cancelFocusPlanTool
 ]
 
 // 送进模型的上下文最多保留最近 N 条，控制 token 成本（完整历史另存于 history）。

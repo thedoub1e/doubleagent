@@ -158,6 +158,16 @@ IPC：`profile:get` / `profile:update`(单条) / `profile:delete` / `profile:cle
 保留在设置/抽屉里的非配置项：「小狗眼中的你」(记忆透明可编辑)、番茄钟、清空对话/画像(两步确认)。
 落地：新增上述对话工具(纯函数 reminderRules + handleToolCalls 分支)，渲染层移除 监督开关/天气城市/提醒编辑器。
 
+### 三阶段路线图（用户 2026-06-13：「你来规划顺序全部做完测试好…再端给我人工核查」）
+按风险低→高、各自可独立验证排序，全部做完自测后交人工核查：
+- [ ] **阶段1 计划式番茄钟/学习计划**（纯本地、低风险）：config.focusPlans(days[]/time/minutes/enabled)；
+  focusPlanUtil 纯函数(isPlanDue 支持星期几+每天/planDayFireKey/describePlan)+测；index 专注计划 watcher(30s 查、到点自动 startFocus+宣告、firedStore 按天去重、不补发)；
+  对话工具 schedule_focus(每天9-11点学习/周一三五晚8点)/cancel_focus_plan。
+- [ ] **阶段2 Agent 多轮工具循环 + 读取型工具**：runChat 升级为多轮(工具结果回喂模型二次组织语言)；
+  读取型工具 list_reminders(我今天有啥待办)/get_weather(现在天气)；保留写入型的简洁回执路径或统一。实机验。
+- [ ] **阶段3 图片输入(vision)+模型能力管理**：providers 加 per-model capability(supportsImages)；
+  渲染层附图(选/粘贴/拖拽)+缩略图；chat:send 带图→runChat 组多模态消息(按 provider anthropic/openai 格式)；按当前模型能力开关附图 UI。实机验(MiniMax/Gemini 看图)。
+
 ### Agent 能力地图（用户 2026-06-13：「不该只有这么点工具，理论上尽可能无感」）
 **无感 = 不靠命令/表单，靠自然对话推断并行动**。人设里加「主动行动」指令：用户随口提到
 ddl/计划/位置/想被提醒/想清静，小狗就主动调用对应工具并温柔回执，不用她说「帮我记一下」。

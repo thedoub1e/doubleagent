@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { Anniversary } from './anniversary'
+import type { FocusPlan } from './focusPlanUtil'
 
 // 默认人设：留学伴侣的陪伴小狗（陪伴 / 监督 / 聊天 / 解惑）。设置里可改。
 const DEFAULT_SYSTEM_PROMPT = [
@@ -55,6 +56,8 @@ export interface AppConfig {
   // 记忆抽取/摘要用的模型 id（与主模型同源、同 key）。留空＝跟随主模型。
   // 用便宜档做后台抽取省成本；只换模型 id，不引第二个 key（小白零门槛）。
   memoryModel: string
+  // 计划式番茄钟/学习计划：到点自动进入专注（对话设定，如「每天9点专注2小时」）。
+  focusPlans: FocusPlan[]
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -76,7 +79,8 @@ const DEFAULTS: AppConfig = {
   eveningBriefing: { time: '22:00', enabled: true },
   anniversaries: [],
   weatherCity: '',
-  memoryModel: ''
+  memoryModel: '',
+  focusPlans: []
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
