@@ -6,6 +6,7 @@ import {
   abortChat,
   composeOpener,
   extractProfile,
+  modelSupportsImages,
   PET_TOOLS,
   runChat,
   summarizeConversation,
@@ -805,12 +806,18 @@ ipcMain.handle('pomodoro:stop', () => {
 
 ipcMain.on('chat:abort', () => abortChat())
 
-// ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
-ipcMain.on('chat:send', async (_e, text: string) => {
-  const trimmed = (text ?? '').trim()
-  if (trimmed.length === 0 || !chatWindow) return
+// 当前模型是否支持看图（渲染层据此显示/隐藏附图按钮）。
+ipcMain.handle('chat:model-vision', () => modelSupportsImages(loadConfig()))
 
-  const userMsg: ChatMessage = { role: 'user', content: trimmed }
+// ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
+ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
+  const trimmed = (text ?? '').trim()
+  const imgs = Array.isArray(images) ? images.filter((u) => typeof u === 'string' && u.startsWith('data:')) : []
+  if ((trimmed.length === 0 && imgs.length === 0) || !chatWindow) return
+
+  // 只发图不打字时，历史里存个占位文本，避免空气泡。
+  const userText = trimmed.length > 0 ? trimmed : '[图片]'
+  const userMsg: ChatMessage = { role: 'user', content: userText }
   const history = appendMessage(userMsg)
 
   const send = (channel: string, payload?: unknown): void => {
@@ -847,7 +854,8 @@ ipcMain.on('chat:send', async (_e, text: string) => {
       },
       onToolCalls: (calls) => handleToolCalls(calls, base.reminderList)
     },
-    PET_TOOLS
+    PET_TOOLS,
+    imgs
   )
 })
 

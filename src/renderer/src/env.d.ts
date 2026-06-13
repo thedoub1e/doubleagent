@@ -44,7 +44,8 @@ interface DoubleAgentApi {
   applySprite: (dims: SpriteDims) => Promise<PublicConfigView>
   clearSprite: () => Promise<PublicConfigView>
   chat: {
-    send: (text: string) => void
+    send: (text: string, images?: string[]) => void
+    modelVision: () => Promise<boolean>
     abort: () => void
     clear: () => void
     close: () => void

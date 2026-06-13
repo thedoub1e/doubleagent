@@ -9,6 +9,8 @@ export interface ProviderPreset {
   piProvider?: string
   defaultBaseUrl?: string
   models: string[]
+  // 自建 OpenAI 兼容源是否支持看图（pi 内置源的能力由 pi-ai 的 model.input 决定，无需此标记）。
+  vision?: boolean
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -20,7 +22,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'moonshotai', label: 'Kimi · 国际', kind: 'pi', piProvider: 'moonshotai', models: ['kimi-k2.6', 'kimi-k2.5', 'kimi-k2-thinking'] },
   { id: 'moonshotai-cn', label: 'Kimi · 国内', kind: 'pi', piProvider: 'moonshotai-cn', models: ['kimi-k2.6', 'kimi-k2.5', 'kimi-k2-thinking'] },
   { id: 'qwen', label: '通义千问 · OpenAI 兼容', kind: 'openai-compatible', defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus', 'qwen-max', 'qwen-turbo'] },
-  { id: 'gemini-proxy', label: 'Gemini 反代 · OpenAI 格式', kind: 'openai-compatible', defaultBaseUrl: '', models: ['gemini-2.5-flash', 'gemini-2.5-pro'] }
+  { id: 'gemini-proxy', label: 'Gemini 反代 · OpenAI 格式', kind: 'openai-compatible', defaultBaseUrl: '', models: ['gemini-2.5-flash', 'gemini-2.5-pro'], vision: true }
 ]
 
 export function findPreset(id: string): ProviderPreset | undefined {

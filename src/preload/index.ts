@@ -30,7 +30,8 @@ const api = {
 
   // —— 聊天 ——
   chat: {
-    send: (text: string): void => ipcRenderer.send('chat:send', text),
+    send: (text: string, images?: string[]): void => ipcRenderer.send('chat:send', text, images),
+    modelVision: (): Promise<boolean> => ipcRenderer.invoke('chat:model-vision'),
     abort: (): void => ipcRenderer.send('chat:abort'),
     clear: (): void => ipcRenderer.send('chat:clear'),
     close: (): void => ipcRenderer.send('chat:close'),

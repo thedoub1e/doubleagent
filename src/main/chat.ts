@@ -272,7 +272,7 @@ async function buildModel(
         provider: preset.id,
         baseUrl,
         reasoning: false,
-        input: ['text'],
+        input: preset.vision ? ['text', 'image'] : ['text'],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 128000,
         maxTokens: 8192
@@ -287,11 +287,27 @@ async function buildModel(
  * 用 pi-ai 流式跑一轮对话。pi-ai 在主进程运行（key 不进渲染层）。
  * 动态 import 以规避 ESM/CJS 互操作问题。
  */
+/** 当前配置的模型是否支持看图（读 pi-ai 的 model.input 模态，权威）。 */
+export async function modelSupportsImages(config: AppConfig): Promise<boolean> {
+  const built = await buildModel(config)
+  if ('error' in built) return false
+  const input = (built.model as { input?: unknown }).input
+  return Array.isArray(input) && input.includes('image')
+}
+
+/** dataURL → pi-ai ImageContent（剥掉 data: 前缀，拆出 mimeType 与 base64）。 */
+function parseImageDataUrl(url: string): { type: 'image'; data: string; mimeType: string } | null {
+  const m = /^data:([^;]+);base64,(.+)$/s.exec(url)
+  if (!m) return null
+  return { type: 'image', data: m[2], mimeType: m[1] }
+}
+
 export async function runChat(
   history: ChatMessage[],
   config: AppConfig,
   handlers: StreamHandlers,
-  tools?: Tool[]
+  tools?: Tool[],
+  images: string[] = []
 ): Promise<void> {
   if (config.apiKey.length === 0) {
     handlers.onError('还没填 API Key —— 点设置，粘贴你的 Key。')
@@ -315,6 +331,17 @@ export async function runChat(
     content: m.content,
     timestamp: 0
   }))
+  // 当前轮带图：把图片附到最后一条 user 消息（content 变成 文本+图片 的多模态数组）。
+  const imgParts = images.map(parseImageDataUrl).filter((p): p is { type: 'image'; data: string; mimeType: string } => p !== null)
+  if (imgParts.length > 0 && messages.length > 0) {
+    const last = messages[messages.length - 1] as { role: string; content: string }
+    if (last.role === 'user') {
+      messages[messages.length - 1] = {
+        ...last,
+        content: [{ type: 'text', text: last.content }, ...imgParts]
+      }
+    }
+  }
 
   let full = ''
   try {

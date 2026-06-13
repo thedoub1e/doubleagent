@@ -69,8 +69,13 @@ root.innerHTML = `
     <div class="banner" id="banner" hidden></div>
 
     <footer class="compose">
-      <textarea id="inp" rows="1" placeholder="和小狗说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
-      <button class="send-btn" id="btn-send" aria-label="发送">↑</button>
+      <div class="attachments" id="attachments" hidden></div>
+      <div class="compose__row">
+        <button class="attach-btn" id="btn-attach" title="发图片" aria-label="发图片" hidden>📎</button>
+        <textarea id="inp" rows="1" placeholder="和小狗说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+        <button class="send-btn" id="btn-send" aria-label="发送">↑</button>
+      </div>
+      <input type="file" id="file-image" accept="image/*" multiple hidden />
     </footer>
   </div>
 `
@@ -88,6 +93,12 @@ const baseUrlField = el<HTMLLabelElement>('field-baseurl')
 const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
+const attachmentsEl = el<HTMLDivElement>('attachments')
+const attachBtn = el<HTMLButtonElement>('btn-attach')
+const fileInput = el<HTMLInputElement>('file-image')
+let pendingImages: string[] = []
+let visionOn = false
+const MAX_IMAGES = 4
 
 // 切源时：刷新模型下拉 + 记忆模型下拉 + 按是否自定义源显示 baseURL 输入。
 function applyProvider(
@@ -159,17 +170,92 @@ function send(): void {
     return
   }
   const text = inputEl.value.trim()
-  if (text.length === 0) return
-  addMessage('user', text)
+  const images = pendingImages.slice()
+  if (text.length === 0 && images.length === 0) return
+  addMessage('user', text.length > 0 ? text : '🖼️ [图片]')
   inputEl.value = ''
   autosize()
+  pendingImages = []
+  renderThumbs()
   activeRaw = ''
   activeBubble = addMessage('assistant', '')
   activeBubble.classList.add('is-typing')
   setStreaming(true)
   showBanner('')
-  window.api.chat.send(text)
+  window.api.chat.send(text, images.length > 0 ? images : undefined)
 }
+
+// ---- 图片附件 ----
+function renderThumbs(): void {
+  attachmentsEl.hidden = pendingImages.length === 0
+  attachmentsEl.innerHTML = ''
+  pendingImages.forEach((url, i) => {
+    const wrap = document.createElement('div')
+    wrap.className = 'attach-thumb'
+    const img = document.createElement('img')
+    img.src = url // dataURL，渲染层本地数据
+    const del = document.createElement('button')
+    del.className = 'attach-del'
+    del.textContent = '×'
+    del.title = '移除'
+    del.addEventListener('click', () => {
+      pendingImages.splice(i, 1)
+      renderThumbs()
+    })
+    wrap.append(img, del)
+    attachmentsEl.appendChild(wrap)
+  })
+}
+
+function addFiles(files: ArrayLike<File>): void {
+  if (!visionOn) return
+  for (const f of Array.from(files)) {
+    if (!f.type.startsWith('image/')) continue
+    if (pendingImages.length >= MAX_IMAGES) break
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string' && pendingImages.length < MAX_IMAGES) {
+        pendingImages.push(reader.result)
+        renderThumbs()
+      }
+    }
+    reader.readAsDataURL(f)
+  }
+}
+
+// 当前模型是否支持看图 → 显示/隐藏附图按钮（不支持则清掉已选图）。
+async function refreshVision(): Promise<void> {
+  visionOn = await window.api.chat.modelVision()
+  attachBtn.hidden = !visionOn
+  if (!visionOn && pendingImages.length > 0) {
+    pendingImages = []
+    renderThumbs()
+  }
+}
+
+attachBtn.addEventListener('click', () => fileInput.click())
+fileInput.addEventListener('change', () => {
+  if (fileInput.files) addFiles(fileInput.files)
+  fileInput.value = '' // 允许重复选同一文件
+})
+inputEl.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+  const imgs = Array.from(items)
+    .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+    .map((it) => it.getAsFile())
+    .filter((f): f is File => f !== null)
+  if (imgs.length > 0) {
+    e.preventDefault()
+    addFiles(imgs)
+  }
+})
+const composeEl = root.querySelector('.compose') as HTMLElement
+composeEl.addEventListener('dragover', (e) => e.preventDefault())
+composeEl.addEventListener('drop', (e) => {
+  e.preventDefault()
+  if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files)
+})
 
 window.api.chat.onDelta((delta) => {
   if (!activeBubble) {
@@ -266,6 +352,7 @@ async function loadConfig(): Promise<void> {
   applyProvider(providerSel.value, cfg.model, cfg.baseUrl, cfg.memoryModel)
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
+  void refreshVision()
   void loadProfileFacts()
   if (!cfg.hasApiKey) {
     showBanner('还没设置 API Key —— 点右上角 ⚙ 填入 Key。')
@@ -284,6 +371,7 @@ async function saveConfig(): Promise<void> {
   const cfg = await window.api.config.set(patch)
   keyInput.value = ''
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
+  void refreshVision() // 换模型后刷新附图按钮可见性
   settingsHint.textContent = '已保存 ✓'
   if (cfg.hasApiKey) showBanner('')
 }
