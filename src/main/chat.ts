@@ -343,20 +343,19 @@ export async function runChat(
 
   const recent = history.slice(-MAX_CONTEXT_MESSAGES)
   // pi-ai 的 Message 数组；多轮里会追加 assistant 消息与 toolResult 消息。
+  // content 必须是「内容块数组」而非纯字符串：pi-ai transform-messages 对 assistant 历史消息
+  // 做 content.flatMap()，字符串没有 flatMap → 第 2 轮(上下文带历史助手消息)就崩。
   const messages: unknown[] = recent.map((m) => ({
     role: m.role,
-    content: m.content,
+    content: [{ type: 'text', text: m.content }],
     timestamp: 0
   }))
-  // 当前轮带图：把图片附到最后一条 user 消息（content 变成 文本+图片 的多模态数组）。
+  // 当前轮带图：把图片块追加到最后一条 user 消息的内容块数组里。
   const imgParts = images.map(parseImageDataUrl).filter((p): p is { type: 'image'; data: string; mimeType: string } => p !== null)
   if (imgParts.length > 0 && messages.length > 0) {
-    const last = messages[messages.length - 1] as { role: string; content: string }
+    const last = messages[messages.length - 1] as { role: string; content: unknown[] }
     if (last.role === 'user') {
-      messages[messages.length - 1] = {
-        ...last,
-        content: [{ type: 'text', text: last.content }, ...imgParts]
-      }
+      last.content = [...last.content, ...imgParts]
     }
   }
 

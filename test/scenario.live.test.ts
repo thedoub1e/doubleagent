@@ -80,6 +80,41 @@ interface ScenarioOut {
   text: string
 }
 
+async function runHistory(
+  history: { role: 'user' | 'assistant'; content: string }[],
+  images?: string[]
+): Promise<ScenarioOut> {
+  const tools: string[] = []
+  const args: Record<string, unknown>[] = []
+  let text = ''
+  await runChat(
+    history,
+    baseConfig(),
+    {
+      onStart: () => {},
+      onDelta: () => {},
+      onError: (m) => {
+        throw new Error('chat error: ' + m)
+      },
+      onDone: (t) => {
+        text = t
+      },
+      onToolCalls: async (calls) => {
+        const results: ToolResult[] = []
+        for (const c of calls) {
+          tools.push(c.name)
+          args.push(c.arguments ?? {})
+          results.push({ toolCallId: c.id, toolName: c.name, text: cannedResult(c.name) })
+        }
+        return results
+      }
+    },
+    PET_TOOLS,
+    images ?? []
+  )
+  return { tools, args, text }
+}
+
 async function runScenario(userText: string, images?: string[]): Promise<ScenarioOut> {
   const tools: string[] = []
   const args: Record<string, unknown>[] = []
@@ -172,5 +207,25 @@ describe.skipIf(!LIVE)('场景测试 · 真实模型沙盒', () => {
     const r = await runScenario('今天有点想家了，心情低落')
     expect(r.tools.length).toBe(0)
     expect(r.text.length).toBeGreaterThan(0)
+  }, 40000)
+
+  // 回归：多轮（上下文带历史助手消息）——曾因 assistant 历史 content 是字符串、
+  // pi-ai 对其 .flatMap 而崩(assistantMsg.content.flatMap is not a function)。第 2 轮纠正必过。
+  it('多轮纠正：带历史助手消息的第二轮不再 flatMap 崩溃', async () => {
+    const r = await runHistory([
+      { role: 'user', content: '我对花生过敏' },
+      { role: 'assistant', content: '好～我记下了，你对花生过敏，以后聚会点外卖我都会替你留心。汪～' },
+      { role: 'user', content: '不是花生，是海鲜' }
+    ])
+    expect(r.text.length).toBeGreaterThan(0) // 能正常回复 = 没崩
+  }, 40000)
+
+  it('多轮 + 工具：历史助手消息 + 新需求触发工具也不崩', async () => {
+    const r = await runHistory([
+      { role: 'user', content: '你好呀' },
+      { role: 'assistant', content: '你好～我是线条小狗，今天想聊点什么？汪' },
+      { role: 'user', content: '帮我记一下明天下午3点交论文' }
+    ])
+    expect(r.tools).toContain('create_reminder')
   }, 40000)
 })
