@@ -30,7 +30,9 @@ function hint(now: Date): string {
   const mi = String(now.getMinutes()).padStart(2, '0')
   return (
     `\n\n【现在】${y}-${m}-${d} ${hh}:${mi}。\n` +
-    '【主动无感用工具，不必等用户说帮我记一下】：\n' +
+    '【对话第一原则·最重要】先好好接住她说的话和心情：她直接陈述的事实(如「我对花生过敏」)要先自然接住、顺口确认你记下了，' +
+    '绝不跳过去讲别的。工具是为了真帮她不是显得勤快：只在她明确想要或明显需要时才用，别主动推销提醒、别把随口一句变成「要不要建个提醒」。克制>勤快。\n' +
+    '【当她明确想要某事时，无感用工具，不必等她说帮我记一下】：\n' +
     '· 要做的事/截止/约会 → create_reminder（dueISO 本地时间，相对日期据「现在」推算）。\n' +
     '· 做完了某事 → complete_reminder。重要日子(考试/回国/生日) → add_countdown。\n' +
     '· 每天定点提醒（每天9点提醒我背单词）→ set_daily_reminder；不要了 → cancel_daily_reminder。\n' +
@@ -218,6 +220,14 @@ describe.skipIf(!LIVE)('场景测试 · 真实模型沙盒', () => {
     const r = await runScenario('今天有点想家了，心情低落')
     expect(r.tools.length).toBe(0)
     expect(r.text.length).toBeGreaterThan(0)
+  }, 40000)
+
+  // 回归：陈述关键事实(过敏)→ 先接住+确认，绝不跳过去推销提醒（人工验收发现的 pushy 问题）。
+  it('说「我对花生过敏」→ 接住并确认，且不主动推销提醒', async () => {
+    const r = await runScenario('我对花生过敏')
+    expect(r.text).toMatch(/过敏|记(下|住)|留意/) // 接住了这件事
+    expect(r.tools).not.toContain('set_daily_reminder') // 不主动推销每日提醒
+    expect(r.tools).not.toContain('create_reminder')
   }, 40000)
 
   // 回归：多轮（上下文带历史助手消息）——曾因 assistant 历史 content 是字符串、
