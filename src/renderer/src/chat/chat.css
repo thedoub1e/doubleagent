@@ -590,6 +590,53 @@ body {
   color: var(--ink-2);
 }
 
+/* ---- 危险操作确认卡片（写文件 / 跑命令）---- */
+.confirm-card {
+  align-self: stretch;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.confirm-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.confirm-detail {
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.confirm-actions .btn-primary,
+.confirm-actions .btn-plain {
+  padding: 7px 18px;
+}
+.confirm-status {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
 /* ---- 横幅提示 ---- */
 .banner {
   padding: 9px 16px;

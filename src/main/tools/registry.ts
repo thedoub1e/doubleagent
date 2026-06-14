@@ -25,9 +25,26 @@ export function createRegistry(modules: ToolModule[]): ToolRegistry {
       const results: ToolResult[] = []
       for (const call of calls) {
         const mod = byName.get(call.name)
+        const args = call.arguments ?? {}
         let text: string
         try {
-          text = mod ? await mod.run(call.arguments ?? {}, ctx) : `未知工具：${call.name}`
+          if (!mod) {
+            text = `未知工具：${call.name}`
+          } else if (mod.danger) {
+            // 中央安全把关：danger 工具一律先 prepare(预校验)→ 不过直接拒、过了弹确认 → 同意才 run。
+            const prep = mod.prepare
+              ? await mod.prepare(args, ctx)
+              : { title: `执行 ${call.name}`, detail: JSON.stringify(args).slice(0, 300) }
+            if ('reject' in prep) {
+              text = prep.reject
+            } else if (!(await ctx.confirm(prep))) {
+              text = '好，我没有做（你没同意）'
+            } else {
+              text = await mod.run(args, ctx)
+            }
+          } else {
+            text = await mod.run(args, ctx)
+          }
         } catch (e) {
           text = `工具「${call.name}」执行出错：${(e as Error)?.message ?? String(e)}`
         }

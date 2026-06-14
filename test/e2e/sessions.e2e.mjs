@@ -134,6 +134,20 @@ try {
   await sleep(350)
   const lastAfter = await count()
   check('A8 删到只剩一个再删 → 自动补建(永远 ≥1)', lastBefore === 1 && lastAfter === 1, `${lastBefore} → ${lastAfter}`)
+
+  // 10) 小白安全层：危险操作确认卡片渲染 + 响应（Path B Phase 2）
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('chat'))
+    w?.webContents.send('tool:confirm', { id: 'e2e-1', title: '运行命令', detail: 'ls -la ~/Desktop' })
+  })
+  await sleep(300)
+  check('安全确认卡片渲染(危险操作)', (await chat.locator('.confirm-card').count()) >= 1)
+  const cardText = (await chat.locator('.confirm-card .confirm-detail').first().textContent()) ?? ''
+  check('确认卡片显示将执行的内容', cardText.includes('ls -la'))
+  await chat.locator('.confirm-card .btn-primary').first().click() // 点「允许」
+  await sleep(200)
+  const status = (await chat.locator('.confirm-card .confirm-status').first().textContent()) ?? ''
+  check('点允许后显示已允许状态', status.includes('已允许'), `实际「${status}」`)
 } catch (e) {
   bad('E2E 运行异常', e?.message ?? String(e))
 } finally {

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runChat, type ToolResult } from '../src/main/chat'
-import { PET_TOOLS } from '../src/main/tools/petTools'
+import { ALL_TOOLS } from '../src/main/tools/index'
 import type { AppConfig } from '../src/main/config'
 
 function envKey(): string {
@@ -38,6 +38,8 @@ function hint(now: Date): string {
     '· 按每天/每周计划自动专注（每天10点专注1小时）→ schedule_focus；取消 → cancel_focus_plan。\n' +
     '· 提到自己在哪/搬家 → set_location。想清静 → set_supervision(false)；恢复 → set_supervision(true)。\n' +
     '· 问有哪些待办 → list_reminders。问天气/带伞 → get_weather。\n' +
+    '【你还能在她电脑上动手】：看文件内容→read_file；看文件夹→list_dir；找文件→search_files；' +
+    '查资料→fetch_url；改/建文件→write_file；跑命令排查或修电脑小毛病→run_command（系统会先弹确认给她点）。\n' +
     '原则：能用工具落地就别只回好的，办了再亲切告诉她；纯闲聊别硬塞工具。'
   )
 }
@@ -70,6 +72,14 @@ function cannedResult(name: string): string {
       return '当前待办（2 条）：交论文、买牛奶'
     case 'get_weather':
       return '马德里今天小雨，13~19°，降水概率 80%'
+    case 'list_dir':
+      return '论文.docx\n照片/\n简历.pdf'
+    case 'read_file':
+      return '（文件内容若干行）'
+    case 'search_files':
+      return '找到 1 处：~/Documents/config.json:12'
+    case 'run_command':
+      return '/dev/disk1s1  466Gi  300Gi  166Gi  65%  /'
     default:
       return '已完成'
   }
@@ -110,7 +120,7 @@ async function runHistory(
         return results
       }
     },
-    PET_TOOLS,
+    ALL_TOOLS,
     images ?? []
   )
   return { tools, args, text }
@@ -142,7 +152,7 @@ async function runScenario(userText: string, images?: string[]): Promise<Scenari
         return results
       }
     },
-    PET_TOOLS,
+    ALL_TOOLS,
     images ?? []
   )
   return { tools, args, text }
@@ -186,7 +196,7 @@ describe.skipIf(!LIVE)('场景测试 · 真实模型沙盒', () => {
   }, 40000)
 
   it('要清静 → set_supervision(false)', async () => {
-    const r = await runScenario('今天别提醒我了，想自己待会儿')
+    const r = await runScenario('帮我把提醒都静音，今天别提醒我了')
     expect(r.tools).toContain('set_supervision')
     const a = r.args[r.tools.indexOf('set_supervision')]
     expect(a.enabled).toBe(false)
@@ -228,5 +238,17 @@ describe.skipIf(!LIVE)('场景测试 · 真实模型沙盒', () => {
       { role: 'user', content: '帮我记一下明天下午3点交论文' }
     ])
     expect(r.tools).toContain('create_reminder')
+  }, 40000)
+
+  // Path B 能力工具：模型应能选用文件/命令工具帮用户做电脑上的事。
+  it('看文件夹 → list_dir', async () => {
+    const r = await runScenario('帮我看看我 Documents 文件夹里都有些什么文件')
+    expect(r.tools).toContain('list_dir')
+  }, 40000)
+
+  it('修电脑/查状态 → run_command 并把结果说人话', async () => {
+    const r = await runScenario('我电脑好像快满了，帮我看看磁盘还剩多少空间')
+    expect(r.tools).toContain('run_command')
+    expect(r.text.length).toBeGreaterThan(0)
   }, 40000)
 })

@@ -68,6 +68,10 @@ interface DoubleAgentApi {
     remove: (id: string) => Promise<SessionsView>
     onUpdated: (cb: () => void) => void
   }
+  tool: {
+    onConfirm: (cb: (req: { id: string; title: string; detail: string }) => void) => void
+    confirmResponse: (id: string, approved: boolean) => void
+  }
   profile: {
     get: () => Promise<ProfileFactView[]>
     update: (id: string, content: string) => Promise<ProfileFactView[]>

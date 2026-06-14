@@ -89,6 +89,15 @@ const api = {
     }
   },
 
+  // —— 危险操作确认（Path B 安全层）——
+  tool: {
+    onConfirm: (cb: (req: { id: string; title: string; detail: string }) => void): void => {
+      ipcRenderer.on('tool:confirm', (_e, req: { id: string; title: string; detail: string }) => cb(req))
+    },
+    confirmResponse: (id: string, approved: boolean): void =>
+      ipcRenderer.send('tool:confirm-response', id, approved)
+  },
+
   // —— 「小狗眼中的你」画像 ——
   profile: {
     get: (): Promise<ProfileFactView[]> => ipcRenderer.invoke('profile:get'),

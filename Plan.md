@@ -51,20 +51,20 @@ memory/summarize/skill-creator/clawhub(技能市场)。
   index.ts 删 handleToolCalls+addCountdown,改 `petRegistry.dispatch(calls,{reminderList,startFocus,stopFocus})` + `petRegistry.toolDefs()`。
   验收:typecheck+172离线(+6 registry)+**12 真模型场景(工具选择行为等价)**+E2E13+build 全过,dev 跑通。加能力从此 = 往 PET_TOOL_MODULES 加一个模块。
 
-- **Phase 1 · 能力工具(手脚,移植 nanobot tools/)**，逐个 TDD、按风险排序：
-  - 1a **文件读取**(read/list/grep,**只读先行**,沙箱到允许根)— 低风险
-  - 1b **网络**(fetch/搜索,只读外部)— 低风险
-  - 1c **文件写入/编辑**(write/edit,**需确认+沙箱**)— 中风险
-  - 1d **shell 执行**(跑命令,**需确认+超时+黑名单+保守默认**)— 高风险,放最后,配套 Phase 2
-  每工具 = 纯函数(路径/参数校验·输出截断,可单测)+ fs/exec 执行层 + registry 注册 + 单测。
+- **Phase 1 · 能力工具(手脚,移植 nanobot tools/) ✅ 已完成 2026-06-14**：新 `tools/computerTools.ts` 6 工具——
+  read_file/list_dir/search_files(只读·沙箱·敏感文件拦截)、fetch_url(SSRF 闸)、write_file/run_command(danger,经确认)。
+  纯安全函数 `tools/safety.ts`(resolveWithinRoots 沙箱·checkCommand 黑名单·isUrlAllowed SSRF·isSensitivePath·truncateOutput)+13测;
+  computerTools 集成测 16(真临时目录:读写/列/搜/沙箱越界/敏感拦截/危险命令拦/确认拒绝)。人设 todayHint 告知小狗新能力 + 说人话别甩终端。
 
-- **Phase 2 · 小白安全层(支柱④,与 1c/1d 并行,Principal 新增硬约束)**：
-  危险工具(write/shell/delete)标 `danger=true` → 执行前走**温柔确认**(小狗问"我要帮你跑这个哦,可以吗?"+展示将做啥)；
-  **沙箱**=文件限允许根(文档/桌面,不碰系统)、shell 黑名单(rm -rf /…)+超时+工作目录限定；保守默认(不确定先问)；
-  危险操作写**本地审计日志**可回溯。**绝不让模型吐任意命令直接执行**(偷 Open-Interpreter 教训,与现有 osascript 白名单同理)。
+- **Phase 2 · 小白安全层(支柱④,Principal 新增硬约束) ✅ 已完成 2026-06-14**：
+  危险工具 `danger=true` → **registry 中央把关**(prepare 预校验→不过直接拒/过了 ctx.confirm 弹确认→同意才 run，单工具忘了也兜得住)；
+  渲染层**确认卡片**(显示将执行内容 + 允许/不行,E2E 验证)；index.ts requestConfirm IPC 往返(无窗口/超时 90s=保守拒绝)；
+  沙箱限主目录、shell 黑名单(rm -rf/拆分标志/sudo/dd/关机/forkbomb/下载即执行/进程替换)+20s 超时+cwd 限定；
+  **审计日志** auditLog.ts(防换行注入);敏感凭据文件(.ssh/.aws/密钥/keychain)读写都拒。
+  **安全审查**(security-reviewer 子代理)无 CRITICAL;修了 MEDIUM(rm 拆分标志绕过/符号链接越界/danger 中央强制) + LOW(SSRF IPv6 映射·链路本地/审计换行/写预览字数) + HARDENING(敏感文件拦截)。
 
-- **Phase 3 · 人情味翻译层(支柱②)**：工具结果**不甩原始终端输出** → 经小狗人设二次组织成人话(复用现有多轮循环:
-  工具结果回喂模型措辞)；失败也温柔("这个我没搞定,换个法子~")；长输出折叠/摘要。
+- **Phase 3 · 人情味翻译层(支柱②) ✅ 基本由现有架构覆盖**：多轮工具循环把工具结果回喂模型,模型以小狗人设组织成人话(已验:
+  「磁盘还剩多少」→ run_command → 模型说人话回复);人设已指示"别甩原始终端输出、失败也温柔、说人话"。后续如需更强的输出折叠再单独做。
 
 - **Phase 4 · MCP 接入(无限扩展)**：移植 nanobot mcp.py,连 MCP server 把其工具纳入 registry → 能力插件式增长。
 

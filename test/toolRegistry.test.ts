@@ -5,7 +5,10 @@ import type { ToolContext, ToolModule } from '../src/main/tools/types'
 const ctx: ToolContext = {
   reminderList: '测试列表',
   startFocus: () => {},
-  stopFocus: () => {}
+  stopFocus: () => {},
+  roots: ['/tmp'],
+  confirm: async () => true,
+  audit: () => {}
 }
 // pi-ai ToolCall 结构 {id,name,arguments}；测试里用最小形状即可。
 const call = (name: string, args: Record<string, unknown> = {}): never =>

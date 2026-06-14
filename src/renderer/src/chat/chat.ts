@@ -308,6 +308,44 @@ window.api.chat.onProactive((message) => {
   void refreshSessions()
 })
 
+// 危险操作确认（写文件/跑命令）：小狗执行前弹卡片，用户点「允许」才放行。
+window.api.tool.onConfirm((req) => {
+  showView('chat')
+  const card = document.createElement('div')
+  card.className = 'confirm-card'
+  const title = document.createElement('div')
+  title.className = 'confirm-title'
+  title.textContent = `🐾 小狗想${req.title}，可以吗？`
+  const detail = document.createElement('pre')
+  detail.className = 'confirm-detail'
+  detail.textContent = req.detail // textContent 防 XSS
+  const actions = document.createElement('div')
+  actions.className = 'confirm-actions'
+  const yes = document.createElement('button')
+  yes.className = 'btn-primary'
+  yes.textContent = '允许'
+  const no = document.createElement('button')
+  no.className = 'btn-plain'
+  no.textContent = '不行'
+  let done = false
+  const respond = (ok: boolean): void => {
+    if (done) return
+    done = true
+    window.api.tool.confirmResponse(req.id, ok)
+    actions.innerHTML = ''
+    const status = document.createElement('span')
+    status.className = 'confirm-status'
+    status.textContent = ok ? '已允许 ✓' : '已拒绝'
+    actions.appendChild(status)
+  }
+  yes.addEventListener('click', () => respond(true))
+  no.addEventListener('click', () => respond(false))
+  actions.append(yes, no)
+  card.append(title, detail, actions)
+  msgsEl.appendChild(card)
+  msgsEl.scrollTop = msgsEl.scrollHeight
+})
+
 window.api.chat.onError((message) => {
   // 防御：万一传来非字符串，也绝不显示 [object Object]。
   const text =

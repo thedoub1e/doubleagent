@@ -13,7 +13,10 @@ import {
   type ChatMessage
 } from './chat'
 import { createRegistry } from './tools/registry'
-import { PET_TOOL_MODULES } from './tools/petTools'
+import { ALL_TOOL_MODULES } from './tools/index'
+import { defaultRoots } from './tools/safety'
+import { auditLog } from './auditLog'
+import type { ConfirmAction, ToolContext } from './tools/types'
 import { clearProfile, loadProfile, saveProfile } from './profile'
 import { applyProfileOps, renderProfile } from './profileUtil'
 import { listReminders as osListReminders } from './remindersOs'
@@ -265,6 +268,12 @@ function todayHint(now: Date): string {
     '想停下 → stop_focus。\n' +
     '· 她提到自己在哪/搬家了 → set_location。\n' +
     '· 她想清静/被打扰够了 → set_supervision(false)；想恢复督促 → set_supervision(true)。\n' +
+    '【你还能真的在她电脑上动手帮忙（她是电脑小白，靠你解决电脑上的事）】：\n' +
+    '· 查看文件/代码/配置内容 → read_file；看文件夹里有什么 → list_dir；找某个文件在哪 → search_files。\n' +
+    '· 查资料/看文档/查报错含义 → fetch_url。\n' +
+    '· 需要改/新建文件 → write_file；需要跑命令排查或修电脑小毛病（装包、清缓存、看状态等）→ run_command。\n' +
+    '  这两个是「动手改电脑」的操作，系统会先弹确认给她点，你正常调用即可；危险命令系统会自动拦。\n' +
+    '· 干完用人话告诉她结果，别甩原始终端输出；失败也温柔，给个下一步建议。她不懂技术术语，说人话。\n' +
     '原则：能用工具落地的就别只回「好的」，要真的帮她办了再用一句话亲切告诉她；但纯闲聊别硬塞工具。\n' +
     '【记住重要事情时顺口确认一下】：当她说了你会长期记住、且会影响以后的关键事实（搬家/换城市、' +
     '过敏或健康、重要日期、改变计划或目标），自然地用一句话顺带确认你记下了（如「好～我记下你下周搬上海了」），' +
@@ -272,9 +281,41 @@ function todayHint(now: Date): string {
   )
 }
 
-// 工具引擎（Path B · Phase 0）：生活类工具注册成 registry，模型工具定义 + 执行统一由它出。
-// 加能力 = 往 PET_TOOL_MODULES 加一个模块，这里不动。startFocus/stopFocus 触达本进程计时器，经 ctx 注入。
-const petRegistry = createRegistry(PET_TOOL_MODULES)
+// 工具引擎（Path B）：生活类工具 + 电脑实干工具(文件/网络/命令)统一注册成 registry。
+// 加能力 = 往对应 *_TOOL_MODULES 加一个模块，这里不动。
+const petRegistry = createRegistry(ALL_TOOL_MODULES)
+
+// ---- 危险操作确认（Path B · Phase 2 小白安全层）----
+// 危险工具(写文件/跑命令)执行前向聊天窗发确认请求，用户点「允许」才放行；拒绝/超时/无窗口=保守不做。
+let confirmSeq = 0
+const pendingConfirms = new Map<string, (approved: boolean) => void>()
+const CONFIRM_TIMEOUT_MS = 90_000
+
+function requestConfirm(action: ConfirmAction): Promise<boolean> {
+  if (!chatWindow) return Promise.resolve(false)
+  showChat() // 把聊天窗弹到前面，让用户看见要确认什么
+  const id = `cf-${confirmSeq++}`
+  return new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (ok: boolean): void => {
+      if (settled) return
+      settled = true
+      pendingConfirms.delete(id)
+      resolve(ok)
+    }
+    pendingConfirms.set(id, finish)
+    chatWindow?.webContents.send('tool:confirm', { id, title: action.title, detail: action.detail })
+    setTimeout(() => finish(false), CONFIRM_TIMEOUT_MS) // 超时保守拒绝
+  })
+}
+ipcMain.on('tool:confirm-response', (_e, id: string, approved: boolean) => {
+  pendingConfirms.get(id)?.(Boolean(approved))
+})
+
+/** 组装工具执行上下文（生活工具用 reminderList/startFocus/stopFocus；能力工具用 roots/confirm/audit）。 */
+function toolContext(reminderList: string): ToolContext {
+  return { reminderList, startFocus, stopFocus, roots: defaultRoots(), confirm: requestConfirm, audit: auditLog }
+}
 
 // 历史超阈值时，把较旧的部分滚动压缩进长期记忆摘要（保留最近若干条原文）。
 const SUMMARIZE_THRESHOLD = 24
@@ -778,8 +819,7 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
         send('chat:error', message)
         setMood('idle')
       },
-      onToolCalls: (calls) =>
-        petRegistry.dispatch(calls, { reminderList: base.reminderList, startFocus, stopFocus })
+      onToolCalls: (calls) => petRegistry.dispatch(calls, toolContext(base.reminderList))
     },
     petRegistry.toolDefs(),
     imgs
