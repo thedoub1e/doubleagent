@@ -11,12 +11,14 @@
     "start": "electron-vite build && electron-vite preview",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "electron-vite build && node test/e2e/sessions.e2e.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^34.2.0",
     "electron-vite": "^5.0.0",
+    "playwright": "^1.60.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
     "vitest": "^4.1.8"

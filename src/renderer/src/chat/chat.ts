@@ -476,7 +476,16 @@ function startRename(item: HTMLElement, s: SessionMetaView): void {
   input.select()
 }
 
+// 回复流式输出途中切/建/删会话会让这条回复存错会话 → 先挡住，提示用户回复完再操作。
+function blockedWhileStreaming(): boolean {
+  if (!streaming) return false
+  showBanner('小狗正在回复，等它说完再切换对话哦～')
+  setTimeout(() => showBanner(''), 1800)
+  return true
+}
+
 async function switchToSession(id: string): Promise<void> {
+  if (blockedWhileStreaming()) return
   if (id === activeSessionId) {
     showView('chat')
     return
@@ -488,6 +497,7 @@ async function switchToSession(id: string): Promise<void> {
 }
 
 async function newSession(): Promise<void> {
+  if (blockedWhileStreaming()) return
   renderSessions(await window.api.session.create())
   showView('chat')
   await renderHistory() // 新会话为空 → 消息区清空
@@ -495,6 +505,7 @@ async function newSession(): Promise<void> {
 }
 
 async function removeSessionById(id: string): Promise<void> {
+  if (blockedWhileStreaming()) return
   const prevActive = activeSessionId
   const view = await window.api.session.remove(id)
   renderSessions(view)
