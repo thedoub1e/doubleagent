@@ -67,8 +67,8 @@ loadDotEnv()
 
 const PET_WIDTH = 240
 const PET_HEIGHT = 380 // 多出的高度留给狗头顶的主动气泡（狗底部对齐，位置不变）
-const CHAT_WIDTH = 440
-const CHAT_HEIGHT = 660
+const CHAT_WIDTH = 500
+const CHAT_HEIGHT = 740
 const MARGIN = 24
 const GAP = 12
 const REPLY_LINGER_MS = 2500

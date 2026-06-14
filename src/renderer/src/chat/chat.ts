@@ -11,34 +11,44 @@ root.innerHTML = `
     <header class="bar">
       <span class="bar__title">线条小狗</span>
       <div class="bar__actions">
-        <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">⚙</button>
-        <button class="icon-btn" id="btn-close" title="收起" aria-label="收起">×</button>
+        <button class="icon-btn" id="btn-pomo-open" title="专注" aria-label="专注">🍅</button>
+        <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">⚙︎</button>
+        <button class="icon-btn" id="btn-close" title="收起" aria-label="收起">✕</button>
       </div>
     </header>
 
-    <div class="settings" id="settings" hidden>
-      <div class="pomodoro">
-        <div class="pomo-head">
-          <span>🍅 番茄钟陪学</span>
-          <span class="pomo-streak" id="pomo-streak"></span>
-        </div>
-        <div class="pomo-row">
-          <input id="pomo-min" type="number" min="1" max="120" value="25" />
-          <span class="pomo-unit">分钟</span>
-          <span class="pomo-count" id="pomo-count"></span>
-          <button class="ghost-btn" id="btn-pomo">开始专注</button>
-        </div>
+    <section class="panel" id="pomodoro-panel" hidden>
+      <div class="panel__head">
+        <span class="panel__title">专注</span>
+        <button class="text-btn" id="btn-pomo-close">完成</button>
       </div>
-      <div class="profile-section">
-        <div class="profile-head">
-          <span>🐶 小狗眼中的你</span>
-          <button class="ghost-btn ghost-btn--sm" id="btn-clear-profile">清空</button>
+      <div class="pomo">
+        <p class="pomo-streak num" id="pomo-streak"></p>
+        <div class="pomo-row">
+          <input class="num" id="pomo-min" type="number" min="1" max="120" value="25" />
+          <span class="pomo-unit">分钟</span>
+          <span class="pomo-count num" id="pomo-count"></span>
+        </div>
+        <button class="btn-primary" id="btn-pomo">开始专注</button>
+        <p class="hint">也可以直接跟小狗说「陪我专注 25 分钟」「每天上午 9 点专注一小时」。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="settings" hidden>
+      <div class="panel__head">
+        <span class="panel__title">设置</span>
+        <button class="text-btn" id="btn-settings-close">完成</button>
+      </div>
+      <p class="note">提醒、天气、专注计划都可以直接跟小狗说，例如「每天 9 点提醒我学习」「我在马德里」「今天别管我了」。</p>
+      <div class="group">
+        <div class="group__head">
+          <span>小狗眼中的你</span>
+          <button class="text-btn" id="btn-clear-profile">清空</button>
         </div>
         <div class="profile-list" id="profile-list"></div>
       </div>
-      <p class="settings__note">提醒、天气位置、监督开关都可以直接跟小狗说，比如「每天9点提醒我学习」「我在马德里」「今天别管我了」🐶</p>
       <details class="setup" id="setup">
-        <summary>⚙ 模型设置（首次填一次）</summary>
+        <summary>模型设置（首次填一次）</summary>
         <label class="field">
           <span>模型源</span>
           <select id="sel-provider">${PROVIDER_PRESETS.map((p) => `<option value="${p.id}">${p.label}</option>`).join('')}</select>
@@ -59,15 +69,11 @@ root.innerHTML = `
           <span>API Key</span>
           <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
         </label>
-        <div class="settings__row">
-          <button class="primary-btn" id="btn-save">保存模型设置</button>
-        </div>
+        <button class="btn-primary" id="btn-save">保存模型设置</button>
       </details>
-      <div class="settings__row">
-        <button class="ghost-btn" id="btn-clear">清空对话</button>
-      </div>
-      <p class="settings__hint" id="settings-hint"></p>
-    </div>
+      <button class="btn-plain danger" id="btn-clear">清空对话记录</button>
+      <p class="hint" id="settings-hint"></p>
+    </section>
 
     <div class="msgs" id="msgs"></div>
 
@@ -76,8 +82,8 @@ root.innerHTML = `
     <footer class="compose">
       <div class="attachments" id="attachments" hidden></div>
       <div class="compose__row">
-        <button class="attach-btn" id="btn-attach" title="发图片" aria-label="发图片" hidden>📎</button>
-        <textarea id="inp" rows="1" placeholder="和小狗说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+        <button class="icon-btn attach-btn" id="btn-attach" title="发图片" aria-label="发图片" hidden>📎</button>
+        <textarea id="inp" rows="1" placeholder="和小狗说点什么…"></textarea>
         <button class="send-btn" id="btn-send" aria-label="发送">↑</button>
       </div>
       <input type="file" id="file-image" accept="image/*" multiple hidden />
@@ -177,7 +183,7 @@ function send(): void {
   const text = inputEl.value.trim()
   const images = pendingImages.slice()
   if (text.length === 0 && images.length === 0) return
-  if (!settingsEl.hidden) setSettingsOpen(false) // 发消息即回到对话
+  showView('chat') // 发消息即回到对话
   addMessage('user', text.length > 0 ? text : '🖼️ [图片]')
   inputEl.value = ''
   autosize()
@@ -303,14 +309,16 @@ window.api.chat.onError((message) => {
   setStreaming(false)
 })
 
-// ---- 设置 ----
-// 设置打开时占满消息区（盖住对话，不再挤压聊天）；关闭时露出对话。
-function setSettingsOpen(open: boolean): void {
-  settingsEl.hidden = !open
-  msgsEl.hidden = open
+// ---- 视图切换：主页=干净对话；设置 / 专注 各自覆盖式子页 ----
+const pomoPanel = el<HTMLElement>('pomodoro-panel')
+type View = 'chat' | 'settings' | 'pomodoro'
+function showView(v: View): void {
+  settingsEl.hidden = v !== 'settings'
+  pomoPanel.hidden = v !== 'pomodoro'
+  msgsEl.hidden = v !== 'chat'
 }
 function toggleSettings(): void {
-  setSettingsOpen(settingsEl.hidden)
+  showView(settingsEl.hidden ? 'settings' : 'chat')
 }
 
 // ---- 「小狗眼中的你」画像 ----
@@ -367,7 +375,7 @@ async function loadConfig(): Promise<void> {
   void loadProfileFacts()
   if (!cfg.hasApiKey) {
     showBanner('还没设置 API Key —— 展开「模型设置」填入 Key。')
-    setSettingsOpen(true)
+    showView('settings')
     el<HTMLDetailsElement>('setup').open = true // 首次没 key 时自动展开模型设置
   }
 }
@@ -414,6 +422,11 @@ inputEl.addEventListener('keydown', (e) => {
   }
 })
 el<HTMLButtonElement>('btn-settings').addEventListener('click', toggleSettings)
+el<HTMLButtonElement>('btn-settings-close').addEventListener('click', () => showView('chat'))
+el<HTMLButtonElement>('btn-pomo-open').addEventListener('click', () =>
+  showView(pomoPanel.hidden ? 'pomodoro' : 'chat')
+)
+el<HTMLButtonElement>('btn-pomo-close').addEventListener('click', () => showView('chat'))
 el<HTMLButtonElement>('btn-close').addEventListener('click', () => window.api.chat.close())
 el<HTMLButtonElement>('btn-save').addEventListener('click', saveConfig)
 
