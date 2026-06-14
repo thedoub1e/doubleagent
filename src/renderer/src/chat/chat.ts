@@ -295,6 +295,9 @@ window.api.chat.onDone((fullText) => {
   if (activeBubble) {
     activeBubble.classList.remove('is-typing')
     if (clean.length > 0) setBubbleContent(activeBubble, 'assistant', clean)
+  } else if (clean.length > 0) {
+    // 气泡在确认卡片处被移除过（危险操作流程）→ 此处补一个完整回答气泡，落在卡片下方。
+    addMessage('assistant', clean)
   }
   activeBubble = null
   setStreaming(false)
@@ -311,6 +314,13 @@ window.api.chat.onProactive((message) => {
 // 危险操作确认（写文件/跑命令）：小狗执行前弹卡片，用户点「允许」才放行。
 window.api.tool.onConfirm((req) => {
   showView('chat')
+  // 确认卡片出现时整条移除当前流式气泡：因为最终 onDone 用的是跨轮累计全文，
+  // 全文会在用户点允许后于卡片「下方」一个新气泡里完整渲染（含确认前那句开场），时间顺序自然、不重复。
+  if (activeBubble) {
+    activeBubble.closest('.msg')?.remove()
+    activeBubble = null
+    activeRaw = ''
+  }
   const card = document.createElement('div')
   card.className = 'confirm-card'
   const title = document.createElement('div')

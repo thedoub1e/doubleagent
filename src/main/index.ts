@@ -196,6 +196,8 @@ function createChatWindow(): void {
   // 原生文件框以 sheet 形式挂在窗口上（见 pick-image/pick-sprite），不会误触发隐藏。
   chatWindow.on('blur', () => {
     if (!chatWindow || !chatWindow.isVisible()) return
+    // 有危险操作待用户确认时绝不自动隐藏，否则确认卡片被收走、用户得手动重开（体验差）。
+    if (pendingConfirms.size > 0) return
     chatWindow.hide()
     chatHiddenByBlurAt = Date.now()
   })
@@ -273,7 +275,12 @@ function todayHint(now: Date): string {
     '· 查资料/看文档/查报错含义 → fetch_url。\n' +
     '· 需要改/新建文件 → write_file；需要跑命令排查或修电脑小毛病（装包、清缓存、看状态等）→ run_command。\n' +
     '  这两个是「动手改电脑」的操作，系统会先弹确认给她点，你正常调用即可；危险命令系统会自动拦。\n' +
+    '【重要·优先用专门工具】只读的事（看/列/找文件）**一律用 read_file/list_dir/search_files**，它们免确认、更顺；' +
+    '**别用 run_command 去 ls/cat/grep**（那样会无谓地弹确认烦她）。run_command 只留给专门工具做不到的事（跑脚本/装包/查系统状态等）。\n' +
     '· 干完用人话告诉她结果，别甩原始终端输出；失败也温柔，给个下一步建议。她不懂技术术语，说人话。\n' +
+    '【绝不编造·铁律】涉及文件内容、命令输出、电脑上的真实情况，**必须先用工具(read_file/list_dir/run_command 等)拿到真实结果再说**；' +
+    '工具拒绝了/报错了/没拿到，就**如实告诉她**「我没读到/我打不开」，绝对不许凭空编造文件内容、命令结果或假装看过——' +
+    '比如读密钥被拒，就直说「这个我不能读」，不许编出里面有什么。宁可说不知道，也不许编。\n' +
     '原则：能用工具落地的就别只回「好的」，要真的帮她办了再用一句话亲切告诉她；但纯闲聊别硬塞工具。\n' +
     '【记住重要事情时顺口确认一下】：当她说了你会长期记住、且会影响以后的关键事实（搬家/换城市、' +
     '过敏或健康、重要日期、改变计划或目标），自然地用一句话顺带确认你记下了（如「好～我记下你下周搬上海了」），' +
@@ -293,7 +300,6 @@ const CONFIRM_TIMEOUT_MS = 90_000
 
 function requestConfirm(action: ConfirmAction): Promise<boolean> {
   if (!chatWindow) return Promise.resolve(false)
-  showChat() // 把聊天窗弹到前面，让用户看见要确认什么
   const id = `cf-${confirmSeq++}`
   return new Promise<boolean>((resolve) => {
     let settled = false
@@ -303,7 +309,8 @@ function requestConfirm(action: ConfirmAction): Promise<boolean> {
       pendingConfirms.delete(id)
       resolve(ok)
     }
-    pendingConfirms.set(id, finish)
+    pendingConfirms.set(id, finish) // 先登记，这样接下来 showChat 的失焦不会把窗口隐藏（blur 守卫看 size>0）
+    showChat() // 把聊天窗弹到前面，让用户看见要确认什么
     chatWindow?.webContents.send('tool:confirm', { id, title: action.title, detail: action.detail })
     setTimeout(() => finish(false), CONFIRM_TIMEOUT_MS) // 超时保守拒绝
   })

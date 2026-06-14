@@ -80,7 +80,9 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ## 📌 现状速览 + 待办队列（2026-06-14，供新会话接手 — 先读这段）
 
-**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=128 过+10 跳过（联网场景测试 `SCENARIO_LIVE=1 npx vitest run test/scenario.live.test.ts`）。.env 有 MINIMAX key。
+**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=206 过+22 跳过。联网真模型测试：`SCENARIO_LIVE=1 npx vitest run test/scenario.live.test.ts`(14 工具选择) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。
+**人工验收手册**：`验收清单.md`(35 项,A多会话/B记忆/C只读能力/D安全层/E回归)。
+**人工验收已发现并修的 3 真问题(2026-06-14)**：①危险操作确认时窗口被失焦隐藏→用户得重开:blur 守卫(pendingConfirms.size>0 不隐藏)+requestConfirm 先登记再 showChat;②确认卡片后回答错位在卡片上方→确认时移除当前流式气泡,全文于卡片下方新气泡渲染(onDone 兜底补气泡);③**模型编造文件内容**(假装读了 ~/.ssh/id_rsa 私钥,实际 read_file 已拒)→人设加「绝不编造铁律」(文件/命令事实必须用工具拿真实结果,拒绝就如实说,绝不假装看过)+「只读优先用专门工具免确认」。全量能力测试验证:拒读密钥零泄露+不编造。
 关掉残留 Electron 用 `pkill -f "doubleagent/node_modules/electron"`（参数仅 `.`，普通 pkill 匹配不到）。
 
 **「小狗眼中的你」(结构化画像) 现状**：
