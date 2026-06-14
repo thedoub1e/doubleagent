@@ -16,6 +16,31 @@ _Last updated: 2026-06-13_
 
 （四大功能 + 安装链路已就绪；剩余收尾项：README 截图 / 伴侣国外实测 / 登录项自启动。）
 
+## 📌 现状速览 + 待办队列（2026-06-14，供新会话接手 — 先读这段）
+
+**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=128 过+10 跳过（联网场景测试 `SCENARIO_LIVE=1 npx vitest run test/scenario.live.test.ts`）。.env 有 MINIMAX key。
+关掉残留 Electron 用 `pkill -f "doubleagent/node_modules/electron"`（参数仅 `.`，普通 pkill 匹配不到）。
+
+**「小狗眼中的你」(结构化画像) 现状**：
+- 抽取=每轮 assistant onDone → extractProfile 取最近4条+现有facts → **信号门控**(无新信息模型返[]→不写)。无固定轮数门槛(语义判断)，明确事实一轮即沉淀、闲聊不沉淀。
+- 结构=5类(identity/preference/concern/commitment/trait)×ADD/UPDATE(矛盾覆盖)/DELETE，上限60(MAX_FACTS,淘汰最旧非constant)。可挂更便宜记忆模型(config.memoryModel)。
+- UI=设置面板「小狗眼中的你」**逐条可编辑(input change→profile.update)+单条删(×→remove)+清空(已两步确认 confirmable 防误触)**。✓误触防护已做 ✓可编辑非只能清空。
+- 待打磨：编辑「可改」不够明显(看着像普通文字)；停顿/空闲 debounce 抽取(省key,优化,未做)。
+
+**上下文管理(防降智) 现状**：runChat 只发**最近30条**(MAX_CONTEXT_MESSAGES)给模型,非全量;超24条(SUMMARIZE_THRESHOLD)把更旧的滚动压缩进摘要(memory.json)注入人设=我们的"压缩"。注入=人设+摘要(叙事)+画像(事实)+当前时间。降智/token已架构兜住。
+
+**会话管理 现状+缺口**：单条滚动历史(history.json)，**无多会话/开新对话/归档概念**；清空对话=清历史+记忆+画像。缺口=要不要多会话线程(待用户定;原设计是单陪伴流)。
+
+### 待办队列（新会话按此推进）
+1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计。按"一天剧情"清单走一遍。
+2. **[会话管理·需用户拍板]** 多会话 vs 单流？若做→「开始新对话」(归档当前历史+摘要→清空对话但**保留**画像/长期记忆)；可能加会话列表。**先问用户**。
+3. **[画像 UX 打磨]** 让"可编辑"更明显(如 hover 出编辑态/铅笔图标/分类可改)；保留两步确认清空。
+4. **[抽取节奏优化]** 空闲/停顿 debounce 抽取(LangMem debounce + Letta sleep-time,复用待机循环)，省 key 不卡回复。
+5. **[收尾]** README 截图 / 伴侣国外实测 api.minimaxi.com 可达 / 对方视角从0安装演练 / `set_briefing`(简报时间08:30·22:00 可对话改,曾提议未做)。
+
+### 已完成大块（勿重复做）
+对话转待办+核销/晨晚简报/持久化补发/行程前置/倒数日/天气(IP自动定位+手填)/解锁问候/久坐/主动找话题pulse/情绪标签gif桶/番茄钟(即时+计划+对话启停+头顶倒计时+跨天统计周统计)/桌面头顶气泡/结构化画像(抽取+注入+可编辑面板)/记忆模型下拉/配置即对话(set_location·set_supervision·set_daily_reminder·schedule_focus等对话工具,无感行动)/agent多轮工具循环+读取工具/图片vision+模型能力管理/Apple HIG 聊天窗(主页干净·番茄钟⚙各子页·可拖拽放大500x740)。
+
 ## 记忆升级方案（用户 2026-06-13 拍板 — 当前主线）
 
 **动机**：现状是「24 条阈值 + LLM 重写单段摘要」(memory.json `{summary, summarizedUpTo}`)，
