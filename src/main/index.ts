@@ -8,34 +8,22 @@ import {
   composeTitle,
   extractProfile,
   modelSupportsImages,
-  PET_TOOLS,
   runChat,
   summarizeConversation,
-  type ChatMessage,
-  type ToolResult
+  type ChatMessage
 } from './chat'
+import { createRegistry } from './tools/registry'
+import { PET_TOOL_MODULES } from './tools/petTools'
 import { clearProfile, loadProfile, saveProfile } from './profile'
 import { applyProfileOps, renderProfile } from './profileUtil'
-import { formatDueHuman, parseIsoDate } from './reminders'
-import {
-  completeReminder as osCompleteReminder,
-  createReminder as osCreateReminder,
-  listReminders as osListReminders
-} from './remindersOs'
+import { listReminders as osListReminders } from './remindersOs'
 import { listTodayEvents as osListTodayEvents } from './calendarOs'
 import { weatherLine } from './weatherNet'
 import { DEFAULT_FOCUS_MINUTES, MAX_FOCUS_MINUTES, recordCompletion, streakLine, toView } from './pomodoro'
 import { loadStreak, saveStreak } from './pomodoroStore'
 import { eventLeadMinutes, isUpcoming } from './calendar'
-import { anniversaryLine, daysUntil, type Anniversary } from './anniversary'
-import { cancelDailyReminders, normalizeTime, upsertDailyReminder } from './reminderRules'
-import {
-  describePlan,
-  isPlanDue,
-  normalizeDays,
-  planDayFireKey,
-  type FocusPlan
-} from './focusPlanUtil'
+import { anniversaryLine } from './anniversary'
+import { isPlanDue, planDayFireKey } from './focusPlanUtil'
 import { dayKey } from './scheduleUtil'
 import {
   BREAK_IDLE_SEC,
@@ -54,7 +42,6 @@ import {
   type PulseState
 } from './pulse'
 import { addFiredKey, loadFiredKeys } from './firedStore'
-import type { ToolCall } from '@earendil-works/pi-ai'
 import {
   activeNeedsLlmTitle,
   activeSessionId,
@@ -256,9 +243,8 @@ function scheduleIdle(): void {
   idleTimer = setTimeout(() => setMood('idle'), REPLY_LINGER_MS)
 }
 
-// ---- 对话转待办：工具调用执行 + 给模型注入今天日期 ----
+// ---- 给模型注入今天日期 + 无感行动指令（工具执行已迁至 tools/ 引擎）----
 const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六']
-const DEFAULT_REMINDER_HOUR = 9 // 只给了日期没给时间时，默认早 9 点提醒
 
 /** 注入到人设末尾：当前日期 + 「无感行动」指令，让小狗从自然对话里主动用工具帮用户。 */
 function todayHint(now: Date): string {
@@ -286,128 +272,9 @@ function todayHint(now: Date): string {
   )
 }
 
-/** 执行模型发起的工具调用，返回每个调用的「结果文本」回喂模型（多轮 agent 循环）。仅处理白名单工具。 */
-async function handleToolCalls(calls: ToolCall[], reminderList: string): Promise<ToolResult[]> {
-  const results: ToolResult[] = []
-  for (const call of calls) {
-    const args = call.arguments ?? {}
-    const out = (text: string): void => {
-      results.push({ toolCallId: call.id, toolName: call.name, text })
-    }
-
-    if (call.name === 'create_reminder') {
-      const title = String(args.title ?? '').trim()
-      if (title.length === 0) {
-        out('未提供提醒内容，已忽略')
-        continue
-      }
-      const dueISO = typeof args.dueISO === 'string' ? args.dueISO : undefined
-      let date: Date | undefined
-      if (dueISO) {
-        const parsed = parseIsoDate(dueISO)
-        if (parsed) {
-          date = parsed.date
-          if (!parsed.hasTime) date.setHours(DEFAULT_REMINDER_HOUR, 0, 0, 0)
-        }
-      }
-      const res = await osCreateReminder({ title, date, list: reminderList, ensureList: true })
-      out(res.ok ? `已创建提醒「${title}」${date ? `，时间 ${formatDueHuman(date)}` : ''}` : `创建失败：${res.error}`)
-    } else if (call.name === 'complete_reminder') {
-      const title = String(args.title ?? '').trim()
-      if (title.length === 0) {
-        out('未提供事项标题')
-        continue
-      }
-      const res = await osCompleteReminder(title, reminderList)
-      out(res.ok ? `已把「${title}」标记完成` : `操作失败：${res.error}`)
-    } else if (call.name === 'add_countdown') {
-      out(addCountdown(String(args.name ?? '').trim(), String(args.date ?? '').trim(), Boolean(args.recurring)))
-    } else if (call.name === 'set_location') {
-      const city = String(args.city ?? '').trim()
-      saveConfig({ weatherCity: city })
-      out(city.length > 0 ? `已设定天气城市为「${city}」` : '已恢复为按网络位置自动定位')
-    } else if (call.name === 'set_supervision') {
-      const enabled = Boolean(args.enabled)
-      saveConfig({ supervisionEnabled: enabled })
-      out(enabled ? '已开启主动监督（提醒/简报恢复）' : '已静音所有主动提醒与简报')
-    } else if (call.name === 'set_daily_reminder') {
-      const time = String(args.time ?? '').trim()
-      const message = String(args.message ?? '').trim()
-      const res = upsertDailyReminder(loadConfig().reminders, time, message)
-      if (!res) {
-        out('时间格式无法识别，需要 HH:MM')
-      } else {
-        saveConfig({ reminders: res.reminders })
-        out(res.updated ? `已把 ${res.time} 的每日提醒改为「${message}」` : `已设定每日提醒：${res.time}「${message}」`)
-      }
-    } else if (call.name === 'cancel_daily_reminder') {
-      const time = typeof args.time === 'string' ? args.time : undefined
-      const keyword = typeof args.keyword === 'string' ? args.keyword : undefined
-      const res = cancelDailyReminders(loadConfig().reminders, { time, keyword })
-      if (res.removed > 0) {
-        saveConfig({ reminders: res.reminders })
-        out(`已取消 ${res.removed} 条每日提醒`)
-      } else {
-        out('未找到匹配的每日提醒')
-      }
-    } else if (call.name === 'start_focus') {
-      const raw = Number(args.minutes)
-      const mins = Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
-      startFocus(mins)
-      out(`已开始专注 ${mins} 分钟`)
-    } else if (call.name === 'stop_focus') {
-      stopFocus()
-      out('已停止当前专注')
-    } else if (call.name === 'schedule_focus') {
-      const t = normalizeTime(String(args.time ?? ''))
-      if (!t) {
-        out('时间格式无法识别，需要 HH:MM')
-      } else {
-        const rawMin = Number(args.minutes)
-        const mins =
-          Number.isFinite(rawMin) && rawMin > 0 ? Math.min(Math.round(rawMin), MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
-        const plan: FocusPlan = { id: `fp-${t.replace(':', '')}`, days: normalizeDays(args.days), time: t, minutes: mins, enabled: true }
-        const others = loadConfig().focusPlans.filter((p) => p.time !== t)
-        saveConfig({ focusPlans: [...others, plan] })
-        out(`已安排自动专注计划：${describePlan(plan)}`)
-      }
-    } else if (call.name === 'cancel_focus_plan') {
-      const t = normalizeTime(String(args.time ?? ''))
-      const before = loadConfig().focusPlans
-      const kept = t ? before.filter((p) => p.time !== t) : before
-      if (kept.length < before.length) {
-        saveConfig({ focusPlans: kept })
-        out('已取消该自动专注计划')
-      } else {
-        out('未找到匹配的专注计划')
-      }
-    } else if (call.name === 'list_reminders') {
-      const res = await osListReminders(reminderList)
-      if (!res.ok) out(`读取待办失败：${res.error}`)
-      else out(res.value.length > 0 ? `当前待办（${res.value.length} 条）：${res.value.join('、')}` : '当前没有未完成的待办')
-    } else if (call.name === 'get_weather') {
-      const city = String(args.city ?? '').trim() || loadConfig().weatherCity
-      const line = await weatherLine(city)
-      out(line ?? '暂时获取不到天气（可能没联网或定位失败）')
-    } else {
-      out(`未知工具：${call.name}`)
-    }
-  }
-  return results
-}
-
-/** 把一个倒数日/纪念日写进 config，返回人话回执。 */
-function addCountdown(name: string, date: string, recurring: boolean): string {
-  if (name.length === 0) return ''
-  const lead = daysUntil(date, new Date())
-  if (lead === null) return '这个日期我没看懂呢，能给我个具体年月日吗？🐶'
-  const ann: Anniversary = { id: `ann-${Date.now().toString(36)}`, name, date, recurring, enabled: true }
-  saveConfig({ anniversaries: [...loadConfig().anniversaries, ann] })
-  if (recurring) return `记好啦！以后每年「${name}」我都会记得💛`
-  return lead >= 0
-    ? `记好啦🎯 距离「${name}」还有 ${lead} 天，我帮你数着～`
-    : `记好啦！「${name}」是 ${date}（已经过去咯）`
-}
+// 工具引擎（Path B · Phase 0）：生活类工具注册成 registry，模型工具定义 + 执行统一由它出。
+// 加能力 = 往 PET_TOOL_MODULES 加一个模块，这里不动。startFocus/stopFocus 触达本进程计时器，经 ctx 注入。
+const petRegistry = createRegistry(PET_TOOL_MODULES)
 
 // 历史超阈值时，把较旧的部分滚动压缩进长期记忆摘要（保留最近若干条原文）。
 const SUMMARIZE_THRESHOLD = 24
@@ -911,9 +778,10 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
         send('chat:error', message)
         setMood('idle')
       },
-      onToolCalls: (calls) => handleToolCalls(calls, base.reminderList)
+      onToolCalls: (calls) =>
+        petRegistry.dispatch(calls, { reminderList: base.reminderList, startFocus, stopFocus })
     },
-    PET_TOOLS,
+    petRegistry.toolDefs(),
     imgs
   )
 })

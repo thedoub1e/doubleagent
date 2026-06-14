@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { PET_TOOLS, runChat, type ToolResult } from '../src/main/chat'
+import { runChat, type ToolResult } from '../src/main/chat'
+import { PET_TOOLS } from '../src/main/tools/petTools'
 import type { AppConfig } from '../src/main/config'
 
 function envKey(): string {

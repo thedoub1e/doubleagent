@@ -1,6 +1,7 @@
 import type { Tool, ToolCall } from '@earendil-works/pi-ai'
 import type { AppConfig } from './config'
 import type { FactCategory, FactType, ProfileFact, ProfileOp } from './profileUtil'
+import type { ToolResult } from './tools/types'
 import { findPreset } from '../shared/providers'
 
 // 历史里只存纯文本（便于持久化 / 渲染）；调用模型时再转成 pi-ai 的 Context。
@@ -9,12 +10,8 @@ export interface ChatMessage {
   content: string
 }
 
-/** 一次工具执行的结果，回喂给模型（多轮 agent 循环）。 */
-export interface ToolResult {
-  toolCallId: string
-  toolName: string
-  text: string
-}
+// 工具结果类型现归 tools/types（Phase 0 工具引擎）；这里再导出，兼容既有 import 路径。
+export type { ToolResult } from './tools/types'
 
 export interface StreamHandlers {
   onStart: () => void
@@ -23,24 +20,6 @@ export interface StreamHandlers {
   onError: (message: string) => void
   /** 模型发起工具调用时回调：调用方执行工具，返回每个调用的结果（回喂模型继续）。 */
   onToolCalls?: (calls: ToolCall[]) => Promise<ToolResult[]>
-}
-
-// 工具参数用「纯 JSON Schema 对象」声明，不静态 import pi-ai 的 TypeBox `Type`：
-// pi-ai 只导出 ESM "import" 条件，在 Electron 主进程(CJS)里静态值导入会 ERR_PACKAGE_PATH_NOT_EXPORTED
-// （动态 import() 才行）。而 TypeBox 的 Type.Object(...) 运行时本就序列化成等价 JSON Schema，
-// 手写纯对象发给模型完全一致。`import type { Tool }` 是类型导入、编译期擦除，无运行时依赖。
-interface JsonSchemaProp {
-  type: string
-  description?: string
-  items?: { type: string }
-}
-interface JsonSchema {
-  type: 'object'
-  properties: Record<string, JsonSchemaProp>
-  required?: string[]
-}
-function defineTool(name: string, description: string, parameters: JsonSchema): Tool {
-  return { name, description, parameters } as unknown as Tool
 }
 
 /** 把任意错误(字符串/Error/带 message 的对象/纯对象)安全转成可读文案，绝不产出 "[object Object]"。 */
@@ -59,204 +38,6 @@ function errToText(err: unknown): string {
   }
   return String(err ?? '未知错误')
 }
-
-/** 「对话转待办」工具：让模型在用户想被提醒时把事项写进 macOS 提醒事项。
- *  仅注册这一个安全工具；模型只填参数，AppleScript 模板由我们写死（绝不执行模型给的脚本）。 */
-export const createReminderTool: Tool = defineTool(
-  'create_reminder',
-  '当用户想被提醒做某事、记一个待办或安排日程时调用，把它写进 macOS 提醒事项。' +
-    '只在用户明确想要提醒/待办/日程时调用；普通闲聊不要调用。',
-  {
-    type: 'object',
-    properties: {
-      title: { type: 'string', description: '提醒事项内容，简洁，如「交 essay」「买牛奶」' },
-      dueISO: {
-        type: 'string',
-        description:
-          '提醒/截止时间，ISO 8601 本地时间，如 2026-06-17T09:00；只有日期就给 2026-06-17；' +
-          '没有明确时间则省略。请根据系统提示里的「今天」推算「明天/下周二」等相对日期。'
-      }
-    },
-    required: ['title']
-  }
-)
-
-/** 「完成核销」工具：用户说做完了某事时，把对应提醒标记完成（闭环跟进的收尾）。 */
-export const completeReminderTool: Tool = defineTool(
-  'complete_reminder',
-  '当用户表示已经完成某个提醒/待办（如「essay 交了」「牛奶买好了」）时调用，把它标记完成。',
-  {
-    type: 'object',
-    properties: {
-      title: { type: 'string', description: '要标记完成的事项标题，尽量与创建时一致，如「交 essay」' }
-    },
-    required: ['title']
-  }
-)
-
-/** 「倒数日/纪念日」工具：用户提到重要日子时记下，早安简报里倒计时/庆祝。 */
-export const addCountdownTool: Tool = defineTool(
-  'add_countdown',
-  '当用户提到一个重要的日子时调用：考试/截止/回国等一次性倒计时，或生日/在一起纪念日等每年重复的纪念日。',
-  {
-    type: 'object',
-    properties: {
-      name: { type: 'string', description: '日子的名字，如「期末考」「回国」「在一起纪念日」' },
-      date: { type: 'string', description: '日期，YYYY-MM-DD（纪念日给最初那年的日期）' },
-      recurring: {
-        type: 'boolean',
-        description: '是否每年重复（生日/纪念日=true；考试/回国等一次性=false）'
-      }
-    },
-    required: ['name', 'date']
-  }
-)
-
-/** 「设定位置」工具：用户提到自己在哪/搬到哪 → 设天气播报城市（留空＝按 IP 自动）。 */
-export const setLocationTool: Tool = defineTool(
-  'set_location',
-  '当用户提到自己现在在哪个城市/国家、或搬家了（如「我在马德里」「我回北京了」）时调用，' +
-    '用于天气播报定位。想恢复自动定位则给空字符串。',
-  {
-    type: 'object',
-    properties: {
-      city: { type: 'string', description: '城市名，如「马德里」「New York」；留空＝按网络位置自动定位' }
-    },
-    required: ['city']
-  }
-)
-
-/** 「主动监督开关」工具：用户想清静/想被督促时切换所有主动提醒与简报。 */
-export const setSupervisionTool: Tool = defineTool(
-  'set_supervision',
-  '当用户想让你别打扰（「别管我了」「静音」「今天别提醒我」）→ enabled=false；' +
-    '想恢复督促（「继续监督我」「正常提醒吧」）→ enabled=true 时调用。',
-  {
-    type: 'object',
-    properties: {
-      enabled: { type: 'boolean', description: 'true=开启主动提醒/简报；false=全部静音' }
-    },
-    required: ['enabled']
-  }
-)
-
-/** 「设定每日提醒」工具：用户想每天定点被提醒做某事（区别于一次性的 create_reminder）。 */
-export const setDailyReminderTool: Tool = defineTool(
-  'set_daily_reminder',
-  '当用户想要「每天/每晚」定点被提醒做某事时调用（如「每天9点提醒我背单词」「以后每晚10点叫我喝水」）。' +
-    '这是每日重复的关心提醒；只提醒一次的具体待办请用 create_reminder。',
-  {
-    type: 'object',
-    properties: {
-      time: { type: 'string', description: '每天提醒的时间，24 小时制 HH:MM，如 09:00、22:30' },
-      message: { type: 'string', description: '提醒说的话，如「该背单词啦」「起来喝口水～」' }
-    },
-    required: ['time', 'message']
-  }
-)
-
-/** 「取消每日提醒」工具：用户不想再被某条每日提醒打扰时。 */
-export const cancelDailyReminderTool: Tool = defineTool(
-  'cancel_daily_reminder',
-  '当用户想取消某条每日定点提醒时调用（如「别在23:30喊我睡觉了」「取消背单词的提醒」）。' +
-    '可给时间或关键词来定位要取消的提醒。',
-  {
-    type: 'object',
-    properties: {
-      time: { type: 'string', description: '要取消的提醒时间 HH:MM（按时间定位时给）' },
-      keyword: { type: 'string', description: '提醒内容里的关键词（按内容定位时给，如「睡觉」「背单词」）' }
-    }
-  }
-)
-
-/** 「开始专注」工具：用户想用番茄钟专注/被陪学一段时间时启动计时。 */
-export const startFocusTool: Tool = defineTool(
-  'start_focus',
-  '当用户想开始专注/番茄钟/让你陪她学习或工作一段时间时调用（如「陪我专注25分钟」「开始番茄钟」' +
-    '「学到下午3点」——按系统提示里的「现在」时间换算成分钟）。',
-  {
-    type: 'object',
-    properties: {
-      minutes: { type: 'number', description: '专注时长（分钟），1~120；没明说时长就用 25' }
-    },
-    required: ['minutes']
-  }
-)
-
-/** 「停止专注」工具：用户想中断当前番茄钟时。 */
-export const stopFocusTool: Tool = defineTool(
-  'stop_focus',
-  '当用户想停止/结束当前正在进行的专注（番茄钟）时调用，如「先停一下」「不专注了」。',
-  { type: 'object', properties: {} }
-)
-
-/** 「计划专注」工具：用户有清晰的每天/每周学习计划，想到点自动进入专注时。 */
-export const scheduleFocusTool: Tool = defineTool(
-  'schedule_focus',
-  '当用户想按每天/每周的固定计划自动开始专注时调用（如「每天上午9点专注2小时」「周一三五晚8点学英语1小时」）。' +
-    '这是会到点自动开启番茄钟的计划；只想立刻开始一次用 start_focus。',
-  {
-    type: 'object',
-    properties: {
-      time: { type: 'string', description: '每次自动开始的时间 HH:MM，如 09:00、20:00' },
-      minutes: { type: 'number', description: '专注时长（分钟），1~120' },
-      days: {
-        type: 'array',
-        items: { type: 'number' },
-        description: '星期几列表，0=周日 1=周一 … 6=周六；每天则省略或给空数组。如周一三五＝[1,3,5]'
-      }
-    },
-    required: ['time', 'minutes']
-  }
-)
-
-/** 「取消专注计划」工具。 */
-export const cancelFocusPlanTool: Tool = defineTool(
-  'cancel_focus_plan',
-  '当用户想取消某条「计划式自动专注」时调用（如「别每天9点自动专注了」）。给时间定位要取消的那条。',
-  {
-    type: 'object',
-    properties: {
-      time: { type: 'string', description: '要取消的计划时间 HH:MM' }
-    }
-  }
-)
-
-/** 「查看待办」工具（读取型）：用户问她有哪些待办/今天要做什么时。 */
-export const listRemindersTool: Tool = defineTool(
-  'list_reminders',
-  '当用户问她有哪些待办/提醒/今天要做什么、或想回顾清单时调用，读取她的提醒清单。',
-  { type: 'object', properties: {} }
-)
-
-/** 「查天气」工具（读取型）：用户问天气/要不要带伞/冷不冷时。 */
-export const getWeatherTool: Tool = defineTool(
-  'get_weather',
-  '当用户问天气/要不要带伞/冷不冷热不热时调用，读取当前位置（或指定城市）的今日天气。',
-  {
-    type: 'object',
-    properties: {
-      city: { type: 'string', description: '可选：指定城市；不给则用她设定的城市或按网络位置自动定位' }
-    }
-  }
-)
-
-/** 注册给模型的工具集合（仅安全工具：本机提醒/倒数日/对话配置/番茄钟/查询；绝不引 file/bash）。 */
-export const PET_TOOLS: Tool[] = [
-  createReminderTool,
-  completeReminderTool,
-  addCountdownTool,
-  setLocationTool,
-  setSupervisionTool,
-  setDailyReminderTool,
-  cancelDailyReminderTool,
-  startFocusTool,
-  stopFocusTool,
-  scheduleFocusTool,
-  cancelFocusPlanTool,
-  listRemindersTool,
-  getWeatherTool
-]
 
 // 送进模型的上下文最多保留最近 N 条，控制 token 成本（完整历史另存于 history）。
 const MAX_CONTEXT_MESSAGES = 30

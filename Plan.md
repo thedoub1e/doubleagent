@@ -1,20 +1,82 @@
 # Plan
 
 _单一事实来源（Source of truth）。始终保持本文件最新。_
-_Last updated: 2026-06-13_
+_Last updated: 2026-06-14_
 
-## Current Objective
-**优先级 2026-06-13 翻转**（用户：主动 agent 才是灵魂，否则与传统 LLM 桌面无异）→ 主动 agent 先上薄片，记忆次做：
-- **主线二（先做）🚀 主动 Agent**：先上一条能跑通的薄片 = **对话转待办**，再逐步补简报/前置提醒/闭环。
-  从"会聊天的桌宠"→"真正管事、主动提醒、不用天天问"。详见「原生集成 + 主动 Agent 能力方案」。
-- **主线一（次做）🧠 记忆升级**：「单段滚动摘要」→「结构化用户画像 + 离散事实库」(Mem0 思路)，
-  让小狗越聊越懂她。详见「记忆升级方案」。（记忆做好后，主动会"更懂你地主动"——两者最终合流。）
+## Current Objective（2026-06-14 重大方向升级 — 用户拍板 Path B）
+**新北极星**：把小狗从"会聊天+会提醒的桌宠"升级成 **"对标 Claude Code 实干能力、但有人情味、记忆全自动的桌面助手"**——
+送给**在国外留学、不懂电脑**的伴侣。让一个电脑小白**零心智负担**地享受 agent 的提效与魅力：
+能**真的在她电脑上做事**(查改文件/跑命令/上网办事/**修电脑小毛病·疑难杂症**/必要时自我修复)，
+但把这份能力**包进一只懂她、有人情味的小狗**里，且**记忆全自动**(她永远不用手动管上下文)。
 
-**「主动」的北极星（四支柱，设计时对照）**：① 主动触发(到点/日历/空闲/ddl/久未聊/情境) ②
-能改变世界(把话变成真的提醒/勾掉待办,而非只回"好的") ③ 闭环跟进(记得提醒过→回来问做了没→再轻推)
-④ 克制(bounded 节奏+静默开关+挑时机,主动而不烦人)。支柱②③是普通 LLM 桌宠没有的差异点。
+**为什么不直接用 Claude Code**：Claude Code 能力够，但 ① **冷、没人情味** ② **要手动管理记忆/上下文**，
+电脑小白搞不定。我们要的 = **Claude Code 的能力 + 陪伴的温度 + 自动的记忆**。三者缺一不可，Claude Code 只占第一个。
 
-（四大功能 + 安装链路已就绪；剩余收尾项：README 截图 / 伴侣国外实测 / 登录项自启动。）
+**实现路线 = Path B（2026-06-14 拍板）**：**把 nanobot 的工具层(手脚)移植进我们自己的轻量 TS**，
+不引 Python 后端、不套 Claude Code/Anthropic、不破单栈——守住 Principal 的"国产模型/可审计/电脑小白保姆级安装"红线。
+= **Clarvis 的魂(记忆+情绪脸,已做) + nanobot 的手脚(工具,待移植) + 我们自研的壳(桌宠/多会话/macOS,已做)**。
+详见 §「能力引擎升级方案（Path B）」。
+
+**北极星四支柱（设计时对照）**：① **能干**(可扩展 skill/tool 引擎,真动手解决问题) ② **人情味**(全程小狗人设,
+把"技术"说成"关心",不甩终端输出) ③ **自动记忆**(结构化画像+摘要,越用越懂她,零手动 — **已做**) ④ **小白安全**
+(危险操作温柔确认+沙箱+保守默认,绝不让她误伤电脑)。
+
+**与旧主线的关系**：旧主线二(主动 agent:提醒/简报/番茄钟…)与主线一(结构化记忆/多会话)**均已落地**，
+现作为新北极星的支柱③(自动记忆)与既有能力并入新架构，不浪费。旧方案段落保留在下方供追溯。
+
+**⚠️ 治理**：本次扩大了产品能力面，但**未改 Principal.md**(用户只授权改 Plan;End Goal 措辞是否正式更新待用户单独确认)。
+新增一条硬约束(下方安全层)：**危险系统操作必须确认+沙箱+保守默认**，与 Principal 的"安全可审计/电脑小白"一致。
+
+## 🎯 能力引擎升级方案（Path B · 用户 2026-06-14 拍板 — 当前主线）
+
+**一句话**：把 nanobot(`~/dev/nanobot`,OpenClaw 砍 99% 代码,MIT,Python)的**工具层移植进我们的 TS**，
+把现在"硬编码 if-else 工具串"升级成 **可扩展 skill/tool 注册引擎 + 能力工具(文件/命令/网络/MCP) + 小白安全层 + 人情味翻译**。
+provider 无关(国产模型,pi-ai)、单栈 TS、可审计、能力可门控(送伴侣的版本关掉危险 skill)。
+
+**为何是 B 不是 A/C**(详见会话记录)：A=直接拿 nanobot Python 当后端(装 Python,撞保姆级安装);C=套 Claude Code+ccswitch
+(Anthropic 工具链撞红线,国产模型下打折,冷)。**B 唯一让我们已有工作 100% 不浪费**：Clarvis 魂(记忆/脸)+ 我们自研壳
+(桌宠/多会话/macOS) 全保留，只"长出手脚"。代价=移植 nanobot tools/ ~1800 行(有蓝本照抄,非从0手搓)。
+
+**nanobot 蓝本(已读源码)**：`nanobot/agent/tools/` = registry.py(70,工具注册表) / filesystem.py(238,读写) /
+shell.py(158,跑命令) / web.py(181,上网) / mcp.py(148,MCP) / spawn.py(63,子agent) / cron.py(158) / base.py(181)。
+`providers/litellm_provider` = DeepSeek/Qwen/Kimi/MiniMax 全支持(我们已有 pi-ai 等价)。`skills/` = tmux/github/weather/
+memory/summarize/skill-creator/clawhub(技能市场)。
+
+**实现路线（低风险→高风险，每阶段 TDD + 可独立验收 + 自动测过再交人工）**：
+
+- **Phase 0 · 工具注册表重构(地基,纯重构行为不变) ✅ 已完成 2026-06-14**：
+  新 `tools/types.ts`(ToolModule{name,description,parameters,danger?,run(args,ctx)}+ToolContext+ToolResult) /
+  `tools/registry.ts`(createRegistry→toolDefs/get/dispatch,单工具抛错隔离不拖垮整轮) /
+  `tools/petTools.ts`(13 个生活工具迁成注册模块,定义+执行合一,行为等价)。chat.ts 删掉 13 工具定义+PET_TOOLS+defineTool(ToolResult 改从 tools/types 再导出);
+  index.ts 删 handleToolCalls+addCountdown,改 `petRegistry.dispatch(calls,{reminderList,startFocus,stopFocus})` + `petRegistry.toolDefs()`。
+  验收:typecheck+172离线(+6 registry)+**12 真模型场景(工具选择行为等价)**+E2E13+build 全过,dev 跑通。加能力从此 = 往 PET_TOOL_MODULES 加一个模块。
+
+- **Phase 1 · 能力工具(手脚,移植 nanobot tools/)**，逐个 TDD、按风险排序：
+  - 1a **文件读取**(read/list/grep,**只读先行**,沙箱到允许根)— 低风险
+  - 1b **网络**(fetch/搜索,只读外部)— 低风险
+  - 1c **文件写入/编辑**(write/edit,**需确认+沙箱**)— 中风险
+  - 1d **shell 执行**(跑命令,**需确认+超时+黑名单+保守默认**)— 高风险,放最后,配套 Phase 2
+  每工具 = 纯函数(路径/参数校验·输出截断,可单测)+ fs/exec 执行层 + registry 注册 + 单测。
+
+- **Phase 2 · 小白安全层(支柱④,与 1c/1d 并行,Principal 新增硬约束)**：
+  危险工具(write/shell/delete)标 `danger=true` → 执行前走**温柔确认**(小狗问"我要帮你跑这个哦,可以吗?"+展示将做啥)；
+  **沙箱**=文件限允许根(文档/桌面,不碰系统)、shell 黑名单(rm -rf /…)+超时+工作目录限定；保守默认(不确定先问)；
+  危险操作写**本地审计日志**可回溯。**绝不让模型吐任意命令直接执行**(偷 Open-Interpreter 教训,与现有 osascript 白名单同理)。
+
+- **Phase 3 · 人情味翻译层(支柱②)**：工具结果**不甩原始终端输出** → 经小狗人设二次组织成人话(复用现有多轮循环:
+  工具结果回喂模型措辞)；失败也温柔("这个我没搞定,换个法子~")；长输出折叠/摘要。
+
+- **Phase 4 · MCP 接入(无限扩展)**：移植 nanobot mcp.py,连 MCP server 把其工具纳入 registry → 能力插件式增长。
+
+- **Phase 5 · 子agent / 技能扩展(后期可选)**：spawn 子agent 处理复杂任务;skill-creator 式自助扩能力。
+
+**守红线对照**：① 国产模型=pi-ai 不变(不碰 Anthropic) ② 单栈 TS=移植非引 Python ③ 可审计=自己写/移植可读
+④ 电脑小白=安装不变(只 Node)+危险操作确认 ⑤ 安全=Phase 2 沙箱/确认/审计。
+
+**现有工作如何归位(不浪费)**：自动记忆(画像/摘要/多会话)=支柱③**已做**;既有生活工具(提醒/日历/天气/番茄钟)
+=Phase 0 迁成 registry 模块;桌宠/情绪脸/Apple 聊天窗/macOS 原生=产品的"脸",保留。
+
+**下一步**：从 **Phase 0(工具注册表重构)** 起手——纯重构、行为等价、风险最低、是后面所有能力的地基。
 
 ## 📌 现状速览 + 待办队列（2026-06-14，供新会话接手 — 先读这段）
 
@@ -36,7 +98,8 @@ _Last updated: 2026-06-13_
 - 形态:会话列表(新建/切换/重命名/删除);主动提醒/简报/找话题投递到**当前活跃会话**;「删某会话」=只删该线程,「忘掉对你的了解」=单独的清画像/长期记忆按钮(明显分开防误删)。详见 §「多会话 + 全局画像 架构方案」。
 
 ### 待办队列（新会话按此推进）
-1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计。按"一天剧情"清单走一遍。
+0. **[🎯 当前主线 · Path B 能力引擎]** 从 **Phase 0 工具注册表重构**起手(纯重构行为不变)→ Phase 1 能力工具(文件/网络/写入/shell)→ Phase 2 小白安全层 → Phase 3 人情味翻译 → Phase 4 MCP。详见 §「能力引擎升级方案（Path B）」。每阶段 TDD+自动测过再交人工。
+1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。
 2. **[会话管理·✅ 已实现+自动化验收 2026-06-14]** 多会话 + 全局共享画像 + 靠谱护栏**全部落地并自动测过**。
    - 实现:第一步骨架(sessionsUtil/sessions.ts/左侧栏 UI/迁移)+ 第二步护栏(低置信不注入/保守抽取/口头纠正高置信/面板手改=权威 constant/顺口确认)+ D1 修复(回复流式中禁切/建/删会话,blockedWhileStreaming 拦截+提示)。
    - **自动化验收(我先跑)**:typecheck ✓ · vitest 162 过(纯函数 sessionsUtil16+scenario6+profileUtil11 · **fs 集成 10**=mock electron 真读写 sessions.json 持久化/重启/隔离/迁移/删空补建 · 其余)✓ · **Playwright-Electron E2E 13 过**(真启 App 真点侧栏:建/切/改名/删/两步确认/删空补建/窗口720/设置番茄面板互斥 D3)✓ · build ✓。`npm run test:e2e` 可复跑(隔离 userData 不碰真实数据)。
@@ -416,6 +479,13 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - ~~「监督」首版形态~~ → ✅ **主动定时提醒/打卡 + macOS 系统通知**（首版就做，加轻量调度器）。
 
 ## Requirement Change Log
+- 2026-06-14: **重大方向升级·能力引擎(Path B)**——用户澄清项目本意=**魔改版 Clarvis/nanobot**:给异地不懂电脑的伴侣
+  一个"对标 Claude Code 实干能力、但有人情味、记忆全自动"的桌面助手(能修电脑小毛病/疑难杂症/办事/提效),
+  Claude Code 对她不合适(冷+要手动管记忆)。评估三路线后**拍板 Path B**=把 nanobot(~/dev/nanobot)工具层移植进我们 TS
+  (registry+filesystem+shell+web+mcp),不引 Python/不套 Claude Code,守 Principal 红线(国产/可审计/单栈/电脑小白)。
+  新增硬约束:危险系统操作必须确认+沙箱+保守默认+审计日志。北极星四支柱:能干/人情味/自动记忆(已做)/小白安全。
+  路线=Phase0 工具注册表重构→Phase1 能力工具→Phase2 安全层→Phase3 人情味翻译→Phase4 MCP。详见 §「能力引擎升级方案(Path B)」。
+  **未改 Principal.md**(用户只授权改 Plan;End Goal 措辞是否更新待用户单独确认)。旧主线一/二(记忆/多会话/主动提醒)均已落地,并入支柱③与既有能力。
 - 2026-06-12: 项目立项。AI 桌宠（线条小狗）+ 类 Gemini 聊天，macOS，赠予电脑小白伴侣。
 - 2026-06-12: 决策——放 doubleagent/ 子文件夹；参考 https://github.com/shepardxia/Clarvis；
   分发走 GitHub pull + 填 API；不买 Apple 签名（个人项目，从源码运行绕开 Gatekeeper）。
