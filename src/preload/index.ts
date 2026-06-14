@@ -83,7 +83,10 @@ const api = {
     switch: (id: string): Promise<SessionsView> => ipcRenderer.invoke('session:switch', id),
     rename: (id: string, title: string): Promise<SessionsView> =>
       ipcRenderer.invoke('session:rename', id, title),
-    remove: (id: string): Promise<SessionsView> => ipcRenderer.invoke('session:delete', id)
+    remove: (id: string): Promise<SessionsView> => ipcRenderer.invoke('session:delete', id),
+    onUpdated: (cb: () => void): void => {
+      ipcRenderer.on('session:updated', () => cb())
+    }
   },
 
   // —— 「小狗眼中的你」画像 ——

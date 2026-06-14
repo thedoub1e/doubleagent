@@ -5,6 +5,7 @@ import type { ChatMessage } from './chat'
 import {
   addSession,
   appendToActive,
+  autoRetitle,
   clearActive,
   freshStore,
   getActive,
@@ -146,6 +147,18 @@ export function switchSession(id: string): void {
 
 export function renameSessionTitle(id: string, title: string): void {
   commit(renameSession(load(), id, title, Date.now()))
+}
+
+/** 模型生成的总结式标题（仅当该会话标题仍为自动时生效）。 */
+export function autoRetitleSession(id: string, title: string): void {
+  commit(autoRetitle(load(), id, title, Date.now()))
+}
+
+/** 当前会话是否该用模型起一个总结式标题：仍是自动标题 + 没用模型起过 + 已有用户消息。 */
+export function activeNeedsLlmTitle(): boolean {
+  const s = getActive(load())
+  if (!s) return false
+  return s.meta.autoTitled !== false && !s.meta.titledByLLM && s.history.some((m) => m.role === 'user')
 }
 
 /** 删除会话；若删空则自动补建一个新会话，保证至少有一个。 */

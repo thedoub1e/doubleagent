@@ -66,6 +66,7 @@ interface DoubleAgentApi {
     switch: (id: string) => Promise<SessionsView>
     rename: (id: string, title: string) => Promise<SessionsView>
     remove: (id: string) => Promise<SessionsView>
+    onUpdated: (cb: () => void) => void
   }
   profile: {
     get: () => Promise<ProfileFactView[]>

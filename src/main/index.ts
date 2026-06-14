@@ -5,6 +5,7 @@ import { loadConfig, publicConfig, saveConfig, type Reminder } from './config'
 import {
   abortChat,
   composeOpener,
+  composeTitle,
   extractProfile,
   modelSupportsImages,
   PET_TOOLS,
@@ -55,8 +56,10 @@ import {
 import { addFiredKey, loadFiredKeys } from './firedStore'
 import type { ToolCall } from '@earendil-works/pi-ai'
 import {
+  activeNeedsLlmTitle,
   activeSessionId,
   appendMessage,
+  autoRetitleSession,
   clearActiveHistory,
   createSession,
   deleteSession,
@@ -432,6 +435,17 @@ async function maybeExtractProfile(): Promise<void> {
   chatWindow?.webContents.send('profile:changed')
 }
 
+// 首轮对话后给会话起一个「总结式」标题（仅自动标题、没起过、已有用户消息时）。便宜模型、不卡回复。
+async function maybeTitleSession(): Promise<void> {
+  if (!activeNeedsLlmTitle()) return
+  const id = activeSessionId()
+  const title = await composeTitle(loadHistory().slice(-6), loadConfig())
+  if (title) {
+    autoRetitleSession(id, title) // 只对仍是自动标题的该会话生效，即使期间切了会话也不会改错
+    chatWindow?.webContents.send('session:updated')
+  }
+}
+
 /** 组装人设：基础人设 + 长期记忆摘要(叙事背景) + 结构化画像(精确档案)。chat:send 与主动开口共用。 */
 function composePersona(base: ReturnType<typeof loadConfig>): string {
   const memory = loadMemory()
@@ -467,7 +481,9 @@ function showChat(): void {
   chatWindow.focus()
 }
 
-// 主动监督：把一条主动消息推给用户 —— 系统通知 + 写进历史 + 推聊天窗 + 小狗凑过来 + 情绪。
+// 主动监督：把一条主动消息推给用户 —— 仅「系统通知 + 头顶气泡」这一环境通道，
+// 不写进会话历史、不推聊天流（问候/简报/久坐这类不该堆进对话框，避免污染真实对话；
+// 多会话下也不会错落进当前活跃会话）。真正的对话只发生在用户主动开口时。
 function pushProactive(message: string): void {
   // 主动消息也可能带情绪标签（如 composeOpener 走人设指令）→ 先剥干净再展示。
   const { clean } = parseEmotion(message)
@@ -477,9 +493,7 @@ function pushProactive(message: string): void {
     n.on('click', () => showChat())
     n.show()
   }
-  appendMessage({ role: 'assistant', content: clean })
-  chatWindow?.webContents.send('chat:proactive', clean)
-  // 桌面头顶气泡：让主动消息「看得见」，不只靠系统通知 / 隐藏的聊天窗。
+  // 桌面头顶气泡：让主动消息「看得见」，不进聊天框。
   petWindow?.webContents.send('pet:say', clean)
   // 先发情绪(reply)，再发 attention —— 动图集模式下「提醒」动图后到、压过 reply，先到先被覆盖。
   setMood('reply')
@@ -639,15 +653,13 @@ function startFocusPlanWatcher(): void {
       if (fired.has(key)) continue
       addFiredKey(key)
       startFocus(plan.minutes) // 头顶倒计时气泡 + 聊天窗按钮同步
-      // 通知 + 写进聊天，但不抢头顶气泡（倒计时气泡已表明在专注）。
+      // 仅系统通知（不写进聊天框；倒计时气泡已表明在专注）。
       const msg = `到点啦~ 按计划陪你专注 ${plan.minutes} 分钟，加油💪🐶`
       if (Notification.isSupported()) {
         const n = new Notification({ title: '线条小狗', body: msg })
         n.on('click', () => showChat())
         n.show()
       }
-      appendMessage({ role: 'assistant', content: msg })
-      chatWindow?.webContents.send('chat:proactive', msg)
     }
   }
   focusPlanTimer = setInterval(tick, FOCUS_PLAN_CHECK_MS)
@@ -893,6 +905,7 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
         scheduleIdle()
         void maybeSummarize()
         void maybeExtractProfile()
+        void maybeTitleSession()
       },
       onError: (message) => {
         send('chat:error', message)

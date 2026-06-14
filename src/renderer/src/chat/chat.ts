@@ -309,12 +309,17 @@ window.api.chat.onProactive((message) => {
 })
 
 window.api.chat.onError((message) => {
+  // 防御：万一传来非字符串，也绝不显示 [object Object]。
+  const text =
+    typeof message === 'string'
+      ? message
+      : (message as { message?: string })?.message ?? '出错了，请稍后再试'
   if (activeBubble) {
     activeBubble.classList.remove('is-typing')
     activeBubble.classList.add('is-error')
-    activeBubble.textContent = message
+    activeBubble.textContent = text
   } else {
-    showBanner(message)
+    showBanner(text)
   }
   activeBubble = null
   setStreaming(false)
@@ -547,6 +552,8 @@ el<HTMLButtonElement>('btn-pomo-open').addEventListener('click', () => {
 el<HTMLButtonElement>('btn-pomo-close').addEventListener('click', () => showView('chat'))
 el<HTMLButtonElement>('btn-close').addEventListener('click', () => window.api.chat.close())
 el<HTMLButtonElement>('btn-new-session').addEventListener('click', () => void newSession())
+// 模型在首轮后异步生成总结式标题 → 刷新列表显示。
+window.api.session.onUpdated(() => void refreshSessions())
 el<HTMLButtonElement>('btn-save').addEventListener('click', saveConfig)
 
 // 两步确认：破坏性操作(清空对话/清空画像)点一下变「确认?」，3 秒内再点才执行，防误触。

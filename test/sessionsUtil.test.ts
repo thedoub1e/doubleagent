@@ -3,6 +3,7 @@ import {
   DEFAULT_TITLE,
   addSession,
   appendToActive,
+  autoRetitle,
   clearActive,
   deriveTitle,
   freshStore,
@@ -118,6 +119,28 @@ describe('renameSession', () => {
     expect(store.sessions.find((s) => s.meta.id === 's2')?.meta.title).toBe(DEFAULT_TITLE)
     const unchanged = renameSession(store, 's1', '   ', T0 + 3)
     expect(unchanged.sessions.find((s) => s.meta.id === 's1')?.meta.title).toBe('减肥计划')
+  })
+})
+
+describe('标题：自动 vs 用户改名 vs 模型总结', () => {
+  it('新会话默认 autoTitled=true', () => {
+    expect(freshStore('s1', T0).sessions[0].meta.autoTitled).toBe(true)
+  })
+  it('用户改名 → autoTitled=false（此后不再被自动覆盖）', () => {
+    const store = renameSession(freshStore('s1', T0), 's1', '减肥计划', T0 + 1)
+    expect(store.sessions[0].meta.title).toBe('减肥计划')
+    expect(store.sessions[0].meta.autoTitled).toBe(false)
+  })
+  it('autoRetitle 在自动标题时套用模型标题并标 titledByLLM，保持 autoTitled', () => {
+    const store = autoRetitle(freshStore('s1', T0), 's1', '花生过敏', T0 + 1)
+    expect(store.sessions[0].meta.title).toBe('花生过敏')
+    expect(store.sessions[0].meta.titledByLLM).toBe(true)
+    expect(store.sessions[0].meta.autoTitled).toBe(true)
+  })
+  it('autoRetitle 不覆盖用户已手动改的标题', () => {
+    let store = renameSession(freshStore('s1', T0), 's1', '我自己起的名', T0 + 1)
+    store = autoRetitle(store, 's1', '模型想改的名', T0 + 2)
+    expect(store.sessions[0].meta.title).toBe('我自己起的名') // 用户优先
   })
 })
 

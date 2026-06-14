@@ -16,6 +16,8 @@ export interface SessionMemory {
 export interface SessionMeta {
   id: string
   title: string
+  autoTitled: boolean // 标题是否仍由系统自动生成（用户手动改名后 = false，不再被自动覆盖）
+  titledByLLM?: boolean // 是否已用模型生成过「总结式」标题（避免每轮重复生成）
   createdAt: number
   updatedAt: number
   lastMessageAt: number
@@ -49,7 +51,7 @@ export function deriveTitle(text: string): string {
 /** 新建一个空会话（指定 id/标题/时间）。 */
 export function newSession(id: string, title: string, now: number): SessionState {
   return {
-    meta: { id, title, createdAt: now, updatedAt: now, lastMessageAt: now },
+    meta: { id, title, autoTitled: true, createdAt: now, updatedAt: now, lastMessageAt: now },
     history: [],
     memory: emptyMemory()
   }
@@ -73,7 +75,7 @@ export function migrateLegacy(
     activeId: id,
     sessions: [
       {
-        meta: { id, title, createdAt: now, updatedAt: now, lastMessageAt: now },
+        meta: { id, title, autoTitled: true, createdAt: now, updatedAt: now, lastMessageAt: now },
         history: history.slice(),
         memory: { ...memory }
       }
@@ -145,6 +147,7 @@ export function setActiveMemory(
   return mapActive(store, (s) => ({ ...s, memory, meta: { ...s.meta, updatedAt: now } }))
 }
 
+/** 用户手动改名：固定标题（autoTitled=false），此后不再被自动/模型标题覆盖。 */
 export function renameSession(
   store: SessionsStore,
   id: string,
@@ -156,7 +159,28 @@ export function renameSession(
   return {
     ...store,
     sessions: store.sessions.map((s) =>
-      s.meta.id === id ? { ...s, meta: { ...s.meta, title: trimmed, updatedAt: now } } : s
+      s.meta.id === id
+        ? { ...s, meta: { ...s.meta, title: trimmed, autoTitled: false, updatedAt: now } }
+        : s
+    )
+  }
+}
+
+/** 模型生成的「总结式」标题：仅在该会话标题仍为自动(autoTitled!==false)时套用，并标记已用模型命名。 */
+export function autoRetitle(
+  store: SessionsStore,
+  id: string,
+  title: string,
+  now: number
+): SessionsStore {
+  const trimmed = (title ?? '').replace(/\s+/g, ' ').trim()
+  if (trimmed.length === 0) return store
+  return {
+    ...store,
+    sessions: store.sessions.map((s) =>
+      s.meta.id === id && s.meta.autoTitled !== false
+        ? { ...s, meta: { ...s.meta, title: trimmed, titledByLLM: true, updatedAt: now } }
+        : s
     )
   }
 }

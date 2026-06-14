@@ -43,6 +43,23 @@ function defineTool(name: string, description: string, parameters: JsonSchema): 
   return { name, description, parameters } as unknown as Tool
 }
 
+/** 把任意错误(字符串/Error/带 message 的对象/纯对象)安全转成可读文案，绝不产出 "[object Object]"。 */
+function errToText(err: unknown): string {
+  if (typeof err === 'string') return err
+  if (err instanceof Error) return err.message
+  if (err && typeof err === 'object') {
+    const o = err as Record<string, unknown>
+    if (typeof o.message === 'string') return o.message
+    if (typeof o.error === 'string') return o.error
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return '未知错误'
+    }
+  }
+  return String(err ?? '未知错误')
+}
+
 /** 「对话转待办」工具：让模型在用户想被提醒时把事项写进 macOS 提醒事项。
  *  仅注册这一个安全工具；模型只填参数，AppleScript 模板由我们写死（绝不执行模型给的脚本）。 */
 export const createReminderTool: Tool = defineTool(
@@ -376,7 +393,7 @@ export async function runChat(
         } else if (event.type === 'done') {
           assistantMsg = event.message
         } else if (event.type === 'error') {
-          handlers.onError(String(event.error))
+          handlers.onError(errToText(event.error))
           return
         }
       }
@@ -405,7 +422,7 @@ export async function runChat(
     if (controller.signal.aborted) {
       handlers.onDone(full)
     } else {
-      handlers.onError((e as Error)?.message ?? String(e))
+      handlers.onError(errToText(e))
     }
   } finally {
     if (currentController === controller) currentController = null
@@ -495,6 +512,42 @@ export async function composeOpener(recent: ChatMessage[], config: AppConfig): P
       .join('')
       .trim()
     return text.length > 0 ? text : null
+  } catch {
+    return null
+  }
+}
+
+/** 给一段对话起一个简短的「总结式」标题（4~12 字，像 ChatGPT 会话名）。失败返回 null。非流式、用便宜模型。 */
+export async function composeTitle(recent: ChatMessage[], config: AppConfig): Promise<string | null> {
+  if (config.apiKey.length === 0) return null
+  const built = await buildModel(memoryConfig(config))
+  if ('error' in built) return null
+  const { pi, model } = built
+
+  const convo = recent
+    .slice(-6)
+    .map((m) => `${m.role === 'user' ? '用户' : '小狗'}：${m.content}`)
+    .join('\n')
+  const context = {
+    systemPrompt:
+      '给下面这段对话起一个简短的中文标题，概括主题，4~12 个字，' +
+      '像聊天软件的会话名（如「花生过敏」「期末复习计划」「周末出游」）。' +
+      '不要标点、不要引号、不要前后缀，只输出标题本身。',
+    messages: [{ role: 'user', content: `对话：\n${convo}\n\n标题：` }]
+  }
+  try {
+    const res = (await pi.complete(model as never, context as never, {
+      apiKey: config.apiKey
+    } as never)) as CompletionResult
+    const text = (res.content ?? [])
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text ?? '')
+      .join('')
+      .trim()
+      .replace(/^["'「『]|["'」』]$/g, '') // 去掉模型可能加的引号
+      .replace(/\s+/g, ' ')
+    if (text.length === 0) return null
+    return text.length > 16 ? text.slice(0, 16) : text
   } catch {
     return null
   }
