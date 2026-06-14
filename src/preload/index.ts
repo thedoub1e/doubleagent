@@ -110,10 +110,10 @@ export interface ReminderView {
 }
 
 export interface StreakView {
-  lastDate: string
   currentStreak: number
   bestStreak: number
   todayCount: number
+  weekCount: number
 }
 
 export interface SpriteDims {

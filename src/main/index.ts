@@ -23,7 +23,7 @@ import {
 } from './remindersOs'
 import { listTodayEvents as osListTodayEvents } from './calendarOs'
 import { weatherLine } from './weatherNet'
-import { DEFAULT_FOCUS_MINUTES, MAX_FOCUS_MINUTES, recordCompletion, streakLine } from './pomodoro'
+import { DEFAULT_FOCUS_MINUTES, MAX_FOCUS_MINUTES, recordCompletion, streakLine, toView } from './pomodoro'
 import { loadStreak, saveStreak } from './pomodoroStore'
 import { eventLeadMinutes, isUpcoming } from './calendar'
 import { anniversaryLine, daysUntil, type Anniversary } from './anniversary'
@@ -784,9 +784,10 @@ function startFocus(minutes: number): number {
       clearPomodoro()
       const next = recordCompletion(loadStreak(), new Date())
       saveStreak(next)
+      const view = toView(next, new Date())
       petWindow?.webContents.send('pet:focus', 0) // 先结束倒计时，再冒庆祝气泡
-      pushProactive(`${streakLine(next)} 休息 5 分钟，活动一下再继续吧～`) // 庆祝(通知+蹦跳+情绪)
-      chatWindow?.webContents.send('pomodoro:done', next)
+      pushProactive(`${streakLine(view)} 休息 5 分钟，活动一下再继续吧～`) // 庆祝(通知+蹦跳+情绪)
+      chatWindow?.webContents.send('pomodoro:done', view)
     },
     mins * 60_000
   )
@@ -800,11 +801,11 @@ function stopFocus(): void {
   setMood('idle')
 }
 
-ipcMain.handle('pomodoro:state', () => loadStreak())
+ipcMain.handle('pomodoro:state', () => toView(loadStreak(), new Date()))
 ipcMain.handle('pomodoro:start', (_e, minutes: number) => startFocus(minutes))
 ipcMain.handle('pomodoro:stop', () => {
   stopFocus()
-  return loadStreak()
+  return toView(loadStreak(), new Date())
 })
 
 ipcMain.on('chat:abort', () => abortChat())

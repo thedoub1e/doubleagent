@@ -90,10 +90,10 @@ declare global {
     fps: number
   }
   interface StreakView {
-    lastDate: string
     currentStreak: number
     bestStreak: number
     todayCount: number
+    weekCount: number
   }
   interface ProfileFactView {
     id: string

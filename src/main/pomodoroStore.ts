@@ -10,11 +10,31 @@ function streakPath(): string {
 
 let cache: StreakState | null = null
 
+// 旧格式（只有 todayCount，无 daily）→ 迁移成按天记账：把 todayCount 记到 lastDate 那天。
+interface LegacyStreak {
+  lastDate?: string
+  currentStreak?: number
+  bestStreak?: number
+  todayCount?: number
+  daily?: Record<string, number>
+}
+function migrate(raw: LegacyStreak): StreakState {
+  const base = initialStreak()
+  const daily =
+    raw.daily ?? (raw.lastDate && raw.todayCount ? { [raw.lastDate]: raw.todayCount } : {})
+  return {
+    lastDate: raw.lastDate ?? base.lastDate,
+    currentStreak: raw.currentStreak ?? base.currentStreak,
+    bestStreak: raw.bestStreak ?? base.bestStreak,
+    daily
+  }
+}
+
 export function loadStreak(): StreakState {
   if (cache) return cache
   try {
     cache = existsSync(streakPath())
-      ? { ...initialStreak(), ...(JSON.parse(readFileSync(streakPath(), 'utf-8')) as Partial<StreakState>) }
+      ? migrate(JSON.parse(readFileSync(streakPath(), 'utf-8')) as LegacyStreak)
       : initialStreak()
   } catch {
     cache = initialStreak()

@@ -423,9 +423,11 @@ inputEl.addEventListener('keydown', (e) => {
 })
 el<HTMLButtonElement>('btn-settings').addEventListener('click', toggleSettings)
 el<HTMLButtonElement>('btn-settings-close').addEventListener('click', () => showView('chat'))
-el<HTMLButtonElement>('btn-pomo-open').addEventListener('click', () =>
-  showView(pomoPanel.hidden ? 'pomodoro' : 'chat')
-)
+el<HTMLButtonElement>('btn-pomo-open').addEventListener('click', () => {
+  const open = pomoPanel.hidden
+  showView(open ? 'pomodoro' : 'chat')
+  if (open) void window.api.pomodoro.state().then(renderStreak) // 每次打开按"现在"刷新(跨天归零)
+})
 el<HTMLButtonElement>('btn-pomo-close').addEventListener('click', () => showView('chat'))
 el<HTMLButtonElement>('btn-close').addEventListener('click', () => window.api.chat.close())
 el<HTMLButtonElement>('btn-save').addEventListener('click', saveConfig)
@@ -486,8 +488,8 @@ function fmtMMSS(ms: number): string {
 
 function renderStreak(s: StreakView): void {
   pomoStreakEl.textContent =
-    s.currentStreak > 0 ? `🔥 连续 ${s.currentStreak} 天 · 最长 ${s.bestStreak} 天` : '还没开始打卡哦'
-  pomoCountEl.textContent = s.todayCount > 0 ? `今天 ${s.todayCount} 🍅` : ''
+    s.currentStreak > 0 ? `🔥 连续 ${s.currentStreak} 天 · 最长 ${s.bestStreak} 天` : '今天还没开始，加油吧'
+  pomoCountEl.textContent = `本周 ${s.weekCount} · 今天 ${s.todayCount} 🍅`
 }
 
 function stopPomoUi(): void {
