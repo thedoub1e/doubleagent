@@ -54,8 +54,19 @@ import {
 } from './pulse'
 import { addFiredKey, loadFiredKeys } from './firedStore'
 import type { ToolCall } from '@earendil-works/pi-ai'
-import { appendMessage, clearHistory, loadHistory } from './history'
-import { clearMemory, loadMemory, saveMemory } from './memory'
+import {
+  activeSessionId,
+  appendMessage,
+  clearActiveHistory,
+  createSession,
+  deleteSession,
+  listSessionMetas,
+  loadHistory,
+  loadMemory,
+  renameSessionTitle,
+  saveMemory,
+  switchSession
+} from './sessions'
 import { BRIEFING_EVENING_ID, BRIEFING_MORNING_ID, startScheduler } from './scheduler'
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
 import { existsSync } from 'node:fs'
@@ -67,7 +78,7 @@ loadDotEnv()
 
 const PET_WIDTH = 240
 const PET_HEIGHT = 380 // 多出的高度留给狗头顶的主动气泡（狗底部对齐，位置不变）
-const CHAT_WIDTH = 500
+const CHAT_WIDTH = 720 // 左侧会话栏(~210) + 对话主区(~500)
 const CHAT_HEIGHT = 740
 const MARGIN = 24
 const GAP = 12
@@ -168,7 +179,7 @@ function createChatWindow(): void {
   chatWindow = new BrowserWindow({
     width: CHAT_WIDTH,
     height: CHAT_HEIGHT,
-    minWidth: 360,
+    minWidth: 560,
     minHeight: 480,
     show: false,
     frame: false,
@@ -265,7 +276,10 @@ function todayHint(now: Date): string {
     '想停下 → stop_focus。\n' +
     '· 她提到自己在哪/搬家了 → set_location。\n' +
     '· 她想清静/被打扰够了 → set_supervision(false)；想恢复督促 → set_supervision(true)。\n' +
-    '原则：能用工具落地的就别只回「好的」，要真的帮她办了再用一句话亲切告诉她；但纯闲聊别硬塞工具。'
+    '原则：能用工具落地的就别只回「好的」，要真的帮她办了再用一句话亲切告诉她；但纯闲聊别硬塞工具。\n' +
+    '【记住重要事情时顺口确认一下】：当她说了你会长期记住、且会影响以后的关键事实（搬家/换城市、' +
+    '过敏或健康、重要日期、改变计划或目标），自然地用一句话顺带确认你记下了（如「好～我记下你下周搬上海了」），' +
+    '给她一个纠正的机会；但只对这类关键事实确认，闲聊和琐事别刻意复述、别啰嗦。'
   )
 }
 
@@ -676,11 +690,32 @@ ipcMain.handle('config:set', (_e, patch: Record<string, unknown>) => {
   return publicConfig()
 })
 ipcMain.handle('chat:history', () => loadHistory())
+// 「清空对话记录」只清当前会话的历史+滚动摘要；画像(对你的了解)由独立按钮清，绝不在此连带清掉。
 ipcMain.on('chat:clear', () => {
-  clearHistory()
-  clearMemory()
-  clearProfile()
-  chatWindow?.webContents.send('profile:changed')
+  clearActiveHistory()
+})
+
+// ---- 多会话管理 IPC：返回 {sessions, activeId} 让渲染层刷新列表 + 重渲染历史 ----
+const sessionsView = (): { sessions: ReturnType<typeof listSessionMetas>; activeId: string } => ({
+  sessions: listSessionMetas(),
+  activeId: activeSessionId()
+})
+ipcMain.handle('session:list', () => sessionsView())
+ipcMain.handle('session:create', () => {
+  createSession()
+  return sessionsView()
+})
+ipcMain.handle('session:switch', (_e, id: string) => {
+  switchSession(id)
+  return sessionsView()
+})
+ipcMain.handle('session:rename', (_e, id: string, title: string) => {
+  renameSessionTitle(id, title)
+  return sessionsView()
+})
+ipcMain.handle('session:delete', (_e, id: string) => {
+  deleteSession(id)
+  return sessionsView()
 })
 
 // ---- 「小狗眼中的你」画像面板 IPC ----
@@ -692,7 +727,14 @@ ipcMain.handle('profile:delete', (_e, id: string) => {
 ipcMain.handle('profile:update', (_e, id: string, content: string) => {
   const trimmed = (content ?? '').trim()
   if (trimmed.length > 0) {
-    saveProfile(applyProfileOps(loadProfile(), [{ op: 'UPDATE', id, content: trimmed }], Date.now()))
+    // 用户亲手改＝最权威信号：标高置信、非推断、constant(优先保留不淘汰)，给抽取后续不轻易覆盖的底气。
+    saveProfile(
+      applyProfileOps(
+        loadProfile(),
+        [{ op: 'UPDATE', id, content: trimmed, confidence: 1, inferred: false, constant: true }],
+        Date.now()
+      )
+    )
   }
   return loadProfile().facts
 })

@@ -8,6 +8,14 @@ if (!root) throw new Error('chat-root not found')
 
 root.innerHTML = `
   <div class="card">
+    <aside class="sidebar">
+      <div class="sidebar__head">
+        <span class="sidebar__title">对话</span>
+        <button class="icon-btn" id="btn-new-session" title="开始新对话" aria-label="开始新对话">＋</button>
+      </div>
+      <div class="session-list" id="session-list"></div>
+    </aside>
+    <div class="main">
     <header class="bar">
       <span class="bar__title">线条小狗</span>
       <div class="bar__actions">
@@ -88,6 +96,7 @@ root.innerHTML = `
       </div>
       <input type="file" id="file-image" accept="image/*" multiple hidden />
     </footer>
+    </div>
   </div>
 `
 
@@ -290,11 +299,13 @@ window.api.chat.onDone((fullText) => {
   activeBubble = null
   setStreaming(false)
   inputEl.focus()
+  void refreshSessions() // 首条消息可能刚生成会话标题 / 改变排序
 })
 
 window.api.chat.onProactive((message) => {
   // 小狗主动说话（提醒 / 打卡）：作为一条助手消息出现（主进程已剥情绪标签，这里再保底一次）。
   addMessage('assistant', parseEmotion(message).clean)
+  void refreshSessions()
 })
 
 window.api.chat.onError((message) => {
@@ -397,10 +408,104 @@ async function saveConfig(): Promise<void> {
 }
 
 async function renderHistory(): Promise<void> {
+  msgsEl.innerHTML = '' // 切换会话时先清空，再渲染目标会话历史
   const history = await window.api.chat.history()
   for (const m of history) {
     if (m.role === 'user' || m.role === 'assistant') addMessage(m.role, m.content)
   }
+}
+
+// ---- 多会话：左侧会话列表（画像/长期记忆全局共享，切换会话不影响小狗对你的了解） ----
+const sessionListEl = el<HTMLDivElement>('session-list')
+let activeSessionId = ''
+
+function renderSessions(view: SessionsView): void {
+  activeSessionId = view.activeId
+  sessionListEl.innerHTML = ''
+  for (const s of view.sessions) {
+    const item = document.createElement('div')
+    item.className = 'session-item' + (s.id === view.activeId ? ' is-active' : '')
+
+    const title = document.createElement('span')
+    title.className = 'session-title'
+    title.textContent = s.title
+    title.title = s.title
+    title.addEventListener('click', () => void switchToSession(s.id))
+    // 双击就地改名（用 input 而非原生 prompt，避免触发窗口失焦自动隐藏）。
+    title.addEventListener('dblclick', () => startRename(item, s))
+
+    const del = document.createElement('button')
+    del.className = 'session-del'
+    del.textContent = '×'
+    del.title = '删除这个对话（不影响小狗对你的了解）'
+    // 两步确认：点一下变「删?」，再点才删，防误删整段对话。
+    confirmable(del, '删?', () => void removeSessionById(s.id))
+
+    item.append(title, del)
+    sessionListEl.appendChild(item)
+  }
+}
+
+function startRename(item: HTMLElement, s: SessionMetaView): void {
+  const input = document.createElement('input')
+  input.className = 'session-rename'
+  input.value = s.title
+  let done = false
+  const commit = async (keep: boolean): Promise<void> => {
+    if (done) return
+    done = true
+    const v = input.value.trim()
+    renderSessions(
+      keep && v.length > 0 && v !== s.title
+        ? await window.api.session.rename(s.id, v)
+        : await window.api.session.list()
+    )
+  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void commit(true)
+    } else if (e.key === 'Escape') {
+      void commit(false)
+    }
+  })
+  input.addEventListener('blur', () => void commit(true))
+  item.innerHTML = ''
+  item.appendChild(input)
+  input.focus()
+  input.select()
+}
+
+async function switchToSession(id: string): Promise<void> {
+  if (id === activeSessionId) {
+    showView('chat')
+    return
+  }
+  renderSessions(await window.api.session.switch(id))
+  showView('chat')
+  await renderHistory()
+  inputEl.focus()
+}
+
+async function newSession(): Promise<void> {
+  renderSessions(await window.api.session.create())
+  showView('chat')
+  await renderHistory() // 新会话为空 → 消息区清空
+  inputEl.focus()
+}
+
+async function removeSessionById(id: string): Promise<void> {
+  const prevActive = activeSessionId
+  const view = await window.api.session.remove(id)
+  renderSessions(view)
+  if (view.activeId !== prevActive) {
+    showView('chat')
+    await renderHistory()
+  }
+}
+
+async function refreshSessions(): Promise<void> {
+  renderSessions(await window.api.session.list())
 }
 
 // ---- 事件绑定 ----
@@ -430,6 +535,7 @@ el<HTMLButtonElement>('btn-pomo-open').addEventListener('click', () => {
 })
 el<HTMLButtonElement>('btn-pomo-close').addEventListener('click', () => showView('chat'))
 el<HTMLButtonElement>('btn-close').addEventListener('click', () => window.api.chat.close())
+el<HTMLButtonElement>('btn-new-session').addEventListener('click', () => void newSession())
 el<HTMLButtonElement>('btn-save').addEventListener('click', saveConfig)
 
 // 两步确认：破坏性操作(清空对话/清空画像)点一下变「确认?」，3 秒内再点才执行，防误触。
@@ -533,6 +639,7 @@ window.api.pomodoro.onDone((s) => {
 
 void window.api.pomodoro.state().then(renderStreak)
 
+void refreshSessions()
 void renderHistory()
 void loadConfig()
 inputEl.focus()

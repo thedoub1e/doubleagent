@@ -60,6 +60,13 @@ interface DoubleAgentApi {
     get: () => Promise<PublicConfigView>
     set: (patch: Record<string, unknown>) => Promise<PublicConfigView>
   }
+  session: {
+    list: () => Promise<SessionsView>
+    create: () => Promise<SessionsView>
+    switch: (id: string) => Promise<SessionsView>
+    rename: (id: string, title: string) => Promise<SessionsView>
+    remove: (id: string) => Promise<SessionsView>
+  }
   profile: {
     get: () => Promise<ProfileFactView[]>
     update: (id: string, content: string) => Promise<ProfileFactView[]>
@@ -94,6 +101,17 @@ declare global {
     bestStreak: number
     todayCount: number
     weekCount: number
+  }
+  interface SessionMetaView {
+    id: string
+    title: string
+    createdAt: number
+    updatedAt: number
+    lastMessageAt: number
+  }
+  interface SessionsView {
+    sessions: SessionMetaView[]
+    activeId: string
   }
   interface ProfileFactView {
     id: string

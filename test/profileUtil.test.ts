@@ -121,4 +121,20 @@ describe('renderProfile', () => {
     }
     expect(renderProfile(p)).toContain('推测')
   })
+
+  test('靠谱护栏：极低置信(<0.3)事实不注入', () => {
+    const p = {
+      facts: [fact({ id: '1', category: 'trait', content: '也许喜欢猫', inferred: true, confidence: 0.2 })],
+      updatedAt: 1
+    }
+    expect(renderProfile(p)).toBe('') // 被注入门槛过滤
+  })
+
+  test('靠谱护栏：constant 关键事实即便低置信也始终注入', () => {
+    const p = {
+      facts: [fact({ id: '1', category: 'concern', content: '对花生过敏', confidence: 0.1, constant: true })],
+      updatedAt: 1
+    }
+    expect(renderProfile(p)).toContain('对花生过敏')
+  })
 })

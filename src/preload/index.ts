@@ -76,6 +76,16 @@ const api = {
     }
   },
 
+  // —— 多会话管理 ——
+  session: {
+    list: (): Promise<SessionsView> => ipcRenderer.invoke('session:list'),
+    create: (): Promise<SessionsView> => ipcRenderer.invoke('session:create'),
+    switch: (id: string): Promise<SessionsView> => ipcRenderer.invoke('session:switch', id),
+    rename: (id: string, title: string): Promise<SessionsView> =>
+      ipcRenderer.invoke('session:rename', id, title),
+    remove: (id: string): Promise<SessionsView> => ipcRenderer.invoke('session:delete', id)
+  },
+
   // —— 「小狗眼中的你」画像 ——
   profile: {
     get: (): Promise<ProfileFactView[]> => ipcRenderer.invoke('profile:get'),
@@ -87,6 +97,19 @@ const api = {
       ipcRenderer.on('profile:changed', () => cb())
     }
   }
+}
+
+export interface SessionMetaView {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  lastMessageAt: number
+}
+
+export interface SessionsView {
+  sessions: SessionMetaView[]
+  activeId: string
 }
 
 export interface ProfileFactView {

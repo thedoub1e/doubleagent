@@ -50,6 +50,9 @@ export type ProfileOp =
 export const MAX_FACTS = 60
 const DEFAULT_CONFIDENCE = 0.8
 const LOW_CONFIDENCE = 0.5
+// 靠谱护栏：confidence 低于此值的事实「不主动注入、不驱动行为」（面板仍可见/可改）。
+// constant(关键安全事实如过敏) 不受此限，永远注入。
+export const INJECT_MIN_CONFIDENCE = 0.3
 
 export function emptyProfile(): UserProfile {
   return { facts: [], updatedAt: 0 }
@@ -130,12 +133,18 @@ const CATEGORY_LABELS: Record<FactCategory, string> = {
 }
 const CATEGORY_ORDER: FactCategory[] = ['identity', 'preference', 'concern', 'commitment', 'trait']
 
-/** 把画像渲染成注入人设的文本（按分类分组；推断/低置信标「推测」）。空画像→空串。 */
+/** 一条事实是否参与注入：constant 永远注入；其余须 confidence ≥ 注入门槛（低置信不驱动行为）。 */
+function isInjectable(f: ProfileFact): boolean {
+  return Boolean(f.constant) || f.confidence >= INJECT_MIN_CONFIDENCE
+}
+
+/** 把画像渲染成注入人设的文本（按分类分组；推断/低置信标「推测」；极低置信不注入）。空→空串。 */
 export function renderProfile(profile: UserProfile): string {
-  if (profile.facts.length === 0) return ''
+  const injectable = profile.facts.filter(isInjectable)
+  if (injectable.length === 0) return ''
   const lines: string[] = []
   for (const cat of CATEGORY_ORDER) {
-    const fs = profile.facts.filter((f) => f.category === cat)
+    const fs = injectable.filter((f) => f.category === cat)
     if (fs.length === 0) continue
     lines.push(`【${CATEGORY_LABELS[cat]}】`)
     for (const f of fs) {

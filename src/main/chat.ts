@@ -574,15 +574,20 @@ export async function extractProfile(
 
   const context = {
     systemPrompt:
-      '你在维护对用户的结构化画像。只从对话里抽取关于「用户」的、值得长期记住的新信息，' +
+      '你在维护对用户的结构化画像。这份画像被所有对话共享，写错会到处误导用户，' +
+      '所以**宁可少记、慢记，绝不记错**——只抽取用户「明确陈述」的、值得长期记住的新信息。\n' +
       '输出一个 JSON 数组，每个元素是一次操作：\n' +
       '- {"op":"ADD","category":..,"content":"..","inferred":bool,"factType":"world|experience|opinion","confidence":0~1}\n' +
-      '- {"op":"UPDATE","id":"已有事实id","content":".."}（信息变化/纠正时；矛盾也用 UPDATE 覆盖，别新增重复）\n' +
+      '- {"op":"UPDATE","id":"已有事实id","content":"..","confidence":0~1,"inferred":bool}（信息变化/纠正时；矛盾也用 UPDATE 覆盖，别新增重复）\n' +
       '- {"op":"DELETE","id":"已有事实id"}（仅当用户明确要求忘记某事）\n' +
-      'category 取值：identity(身份)/preference(喜好)/concern(在意的事)/commitment(约定)/trait(性格)。' +
-      '性格/情绪/作息这类推断设 inferred=true、给较低 confidence。' +
-      '关键安全/健康事实（如过敏）可设 "constant":true。' +
-      '**没有值得记的新信息时，输出空数组 []**。闲聊/寒暄不要记。只输出 JSON 数组，不要其它文字。',
+      'category 取值：identity(身份)/preference(喜好)/concern(在意的事)/commitment(约定)/trait(性格)。\n' +
+      '【保守规则，必须遵守】：\n' +
+      '· 玩笑、假设（「如果…」）、反问、转述别人的话、一时情绪 → 不要记。\n' +
+      '· 性格/情绪/作息这类推断设 inferred=true、confidence ≤ 0.4（只是猜测，不能当确定事实）。\n' +
+      '· 用户明确说出的身份/喜好/约定等事实 confidence 0.8~0.9。\n' +
+      '· **用户在纠正你（如「不是…是…」「我说的是…」「记错了」）→ 用 UPDATE 覆盖对应事实，confidence 设 0.95、inferred=false**（用户亲口纠正＝最权威）。\n' +
+      '· 关键安全/健康事实（如过敏）设 "constant":true。\n' +
+      '**没有值得记的新信息时，输出空数组 []**。闲聊/寒暄/客套不要记。只输出 JSON 数组，不要其它文字。',
     messages: [
       {
         role: 'user',
