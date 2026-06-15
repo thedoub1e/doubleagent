@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { runChat, type ToolResult } from '../src/main/chat'
+import { extractProfile, runChat, type ToolResult } from '../src/main/chat'
 import { ALL_TOOLS } from '../src/main/tools/index'
 import type { AppConfig } from '../src/main/config'
 
@@ -32,6 +32,7 @@ function hint(now: Date): string {
     `\n\n【现在】${y}-${m}-${d} ${hh}:${mi}。\n` +
     '【对话第一原则·最重要】先好好接住她说的话和心情：她直接陈述的事实(如「我对花生过敏」)要先自然接住、顺口确认你记下了，' +
     '绝不跳过去讲别的。工具是为了真帮她不是显得勤快：只在她明确想要或明显需要时才用，别主动推销提醒、别把随口一句变成「要不要建个提醒」。克制>勤快。\n' +
+    '她情绪低落/烦躁/抱怨吐槽时，先当好的倾听者：共情、安慰、陪着她，别急着讲道理或塞工具/方案；等她想要办法时再温柔给。\n' +
     '【当她明确想要某事时，无感用工具，不必等她说帮我记一下】：\n' +
     '· 要做的事/截止/约会 → create_reminder（dueISO 本地时间，相对日期据「现在」推算）。\n' +
     '· 做完了某事 → complete_reminder。重要日子(考试/回国/生日) → add_countdown。\n' +
@@ -220,6 +221,27 @@ describe.skipIf(!LIVE)('场景测试 · 真实模型沙盒', () => {
     const r = await runScenario('今天有点想家了，心情低落')
     expect(r.tools.length).toBe(0)
     expect(r.text.length).toBeGreaterThan(0)
+  }, 40000)
+
+  // 情绪吐槽 → 先共情安慰、不急着塞工具/方案（心理支持）。
+  it('坏心情吐槽 → 共情安慰，不硬塞工具', async () => {
+    const r = await runScenario('烦死了，这破房子天天吵得我睡不着，我真的受够了')
+    expect(r.tools.length).toBe(0) // 先安慰，别马上塞工具
+    expect(r.text.length).toBeGreaterThan(0)
+  }, 40000)
+
+  // 记忆护栏：坏心情下的气话/吐槽，绝不抽成「讨厌X/想离开Y」这种负面事实写进画像。
+  it('吐槽气话不被抽成负面画像事实', async () => {
+    const ops = await extractProfile(
+      [
+        { role: 'user', content: '烦死了，我讨厌这破房子，再也不想待马德里了' },
+        { role: 'assistant', content: '听起来你今天真的很累很委屈，我在呢，抱抱～' }
+      ],
+      [],
+      baseConfig()
+    )
+    const blob = JSON.stringify(ops)
+    expect(blob).not.toMatch(/讨厌|不想待|想离开|离开马德里/) // 不记负面标签
   }, 40000)
 
   // 回归：陈述关键事实(过敏)→ 先接住+确认，绝不跳过去推销提醒（人工验收发现的 pushy 问题）。
