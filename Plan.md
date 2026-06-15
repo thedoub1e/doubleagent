@@ -84,13 +84,13 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 **人工验收手册**：`验收清单.md`(35 项)。
 
 **🟢 已完成大块(2026-06-14~15，均测过+提交)**：
-- **Path B 能力引擎 Phase 0~3 完成**：tools/ 注册引擎(registry+types)；能力工具 read_file/list_dir/search_files/web_search(Bing)/fetch_url/write_file/run_command + find_nearby(Google Places,需 mapsApiKey)；小白安全层(safety.ts 沙箱/shell黑名单/SSRF/敏感文件 + danger 工具 registry 中央把关 prepare→确认→run + 确认卡片 UI + auditLog)；人情味由多轮循环+人设覆盖。Phase 4 MCP 未做。
+- **Path B 能力引擎 Phase 0~3 完成**：tools/ 注册引擎(registry+types)；能力工具 read_file/list_dir/search_files/web_search(Bing)/fetch_url/write_file/run_command（find_nearby/Google Places 已于 2026-06-15 按用户要求撤除）；小白安全层(safety.ts 沙箱/shell黑名单/SSRF/敏感文件 + danger 工具 registry 中央把关 prepare→确认→run + 确认卡片 UI + auditLog)；人情味由多轮循环+人设覆盖。Phase 4 MCP 未做。
 - **多会话+全局画像+靠谱护栏**(sessions.ts/左侧栏)；**记忆护栏**(低置信不注入/保守抽取/纠正高置信/手改权威/**吐槽气话不记负面**)；**情绪支持**(倾听者,先共情不塞工具)；**人设重平衡**(先接住话、工具克制不推销、绝不编造文件内容)。
 - **思考过程披露 UI**(💭 思考中→流式思考可收起 + 🔍 正在上网查/⚙️ 跑命令 活动状态)；**总结式会话标题**;主动消息只走通知+头顶气泡不进对话框。
 - **联网修复**：`setDefaultResultOrder('ipv4first')` 修 Node fetch IPv6 死路由超时 + web_search(Bing 宽容解析)。
 
 **🔴 重要定位(2026-06-15)**：她是 **i 人(内向)** → 做**贴心生活助手+陪伴**，不是沟通工具。新功能优先生活助手属性。
-**❌ 不做**：小红书爬虫(用户后续单独项目)。**💡 待议**：Google Maps 已做工具待用户给 key 验收；每天找房源(自动 listings 不可行,见下方)。
+**❌ 不做**：小红书爬虫(用户后续单独项目)；Google Maps 附近推荐(2026-06-15 先做后撤,见下)。**💡 待议**：每天找房源(自动 listings 不可行,见下方)。
 **人工验收已发现并修的 3 真问题(2026-06-14)**：①危险操作确认时窗口被失焦隐藏→用户得重开:blur 守卫(pendingConfirms.size>0 不隐藏)+requestConfirm 先登记再 showChat;②确认卡片后回答错位在卡片上方→确认时移除当前流式气泡,全文于卡片下方新气泡渲染(onDone 兜底补气泡);③**模型编造文件内容**(假装读了 ~/.ssh/id_rsa 私钥,实际 read_file 已拒)→人设加「绝不编造铁律」(文件/命令事实必须用工具拿真实结果,拒绝就如实说,绝不假装看过)+「只读优先用专门工具免确认」。全量能力测试验证:拒读密钥零泄露+不编造。
 关掉残留 Electron 用 `pkill -f "doubleagent/node_modules/electron"`（参数仅 `.`，普通 pkill 匹配不到）。
 
@@ -131,12 +131,12 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 **接入代价/风险(给伴侣礼物需权衡，待用户拍板)**：① 都需**她的小红书登录(扫码/cookie)** → 账号风险:温和频率低但非零(小红书会封自动化账号)，**用她账号自动化的风险是 double 的决定**；② MediaCrawler=Python+Playwright+浏览器(重、撞单栈/保姆级)；Spider_XHS=Node(轻、合栈)但无 license；③ **维护脆弱**:小红书改签名就坏，需持续跟进更新。**结论:技术可行(她登录态+温和频率=合理个人使用)，但要 double 接受账号风险+维护负担。若做，选 Spider_XHS(Node合栈) 或 MediaCrawler(最稳)，做成低频(每天几次)「马德里租房」搜索。待用户拍板。**
 **情绪面**：住房噪音让她烦躁→已由「情绪支持(倾听者)」覆盖(先共情再一起想办法)。
 
-### 💡 待议新功能：Google Maps / 位置推荐（用户 2026-06-15 提）
-**想法**：接 Google Maps（用户环境可用 Google），让小狗按**她的位置**推荐附近好吃好玩的——出去吃/在家做饭不知道吃啥都能问小狗。
-**落地评估**：用 **Google Places API**（官方/JSON/稳，优于爬搜索引擎）。需 ①用户提供一个免费 Google Maps API key（像模型 key 一样存本地）②位置来源=现有 IP 定位(ip-api 给城市级坐标，附近店可能偏；或她说「我在XX区」)。新 `find_nearby(关键词/类型)` 工具→Places Nearby Search。**待用户确认要不要做 + 提供 key**。
+### ❌ 已撤除：Google Maps / 位置推荐（用户 2026-06-15 先做后撤）
+**经过**：曾实现 find_nearby(Google Places searchText)+设置里 Maps 密钥框，待用户给 key 验收。**用户 2026-06-15 拍板「不搞谷歌地图接入附近吃的了」→ 整套干净移除**(placesTool.ts/test 删、ALL_TOOL_MODULES 去掉、config.mapsApiKey/publicConfig.hasMapsKey/preload/env.d.ts/renderer Maps 密钥框/GOOGLE_MAPS_API_KEY 回退 全删、todayHint 的 find_nearby 路由删)。
+**保留**：「不知道吃什么/想做饭/想找附近吃的」→ 小狗结合她口味聊家常菜 + web_search 查菜谱或本地推荐(无需 key、无需 Google)。
 
 ### 待办队列（新会话按此推进，2026-06-15）
-0. **[待用户操作]** Google Places 位置推荐已做好(`find_nearby` 工具+设置里 Maps 密钥框)，**待用户拿一个免费 Google Maps key(启用 Places API New)填进设置或 .env GOOGLE_MAPS_API_KEY** 才能 live 验。做饭建议已可用(无需 key)。
+0. ~~**[待用户操作]** Google Places 位置推荐~~ ❌ **已撤除(用户 2026-06-15 拍板不搞了)**：find_nearby 工具 + Maps 密钥(config/UI/preload/env)整套干净移除，placesTool.ts/test 删除；「不知道吃什么/做饭」建议保留(无需 key，小狗结合口味聊+web_search 查菜谱/本地推荐)。详见 §「待议·Google Maps」已划掉。
 A. **[基础设施/打磨 · 用户选定可自排做]** ① MCP 接入(Phase 4,中等工程,解锁挂任意 MCP server) ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
 B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
 1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。

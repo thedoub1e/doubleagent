@@ -58,8 +58,6 @@ export interface AppConfig {
   memoryModel: string
   // 计划式番茄钟/学习计划：到点自动进入专注（对话设定，如「每天9点专注2小时」）。
   focusPlans: FocusPlan[]
-  // Google Maps/Places API key（位置推荐 find_nearby 用；由赠予者一次性填，留空=不启用附近推荐）。
-  mapsApiKey: string
   // 开机自动启动小狗（常驻桌面陪伴）。由赠予者一次性在设置里打开；默认关，不打扰开发机。
   autoLaunch: boolean
 }
@@ -85,7 +83,6 @@ const DEFAULTS: AppConfig = {
   weatherCity: '',
   memoryModel: '',
   focusPlans: [],
-  mapsApiKey: '',
   autoLaunch: false
 }
 
@@ -103,7 +100,6 @@ export interface PublicConfig {
   spriteSheet?: { rows: number; cols: number; fps: number }
   weatherCity: string
   memoryModel: string
-  hasMapsKey: boolean
   autoLaunch: boolean
 }
 
@@ -127,11 +123,6 @@ export function loadConfig(): AppConfig {
   const envKey = process.env.MINIMAX_API_KEY ?? ''
   if (result.provider.startsWith('minimax') && result.apiKey.length === 0 && envKey.length > 0) {
     result = { ...result, apiKey: envKey }
-  }
-  // 同理：Maps key 没在 UI 填时，回退项目 .env 的 GOOGLE_MAPS_API_KEY。
-  const envMaps = process.env.GOOGLE_MAPS_API_KEY ?? ''
-  if ((result.mapsApiKey ?? '').length === 0 && envMaps.length > 0) {
-    result = { ...result, mapsApiKey: envMaps }
   }
   cache = result
   return result
@@ -161,7 +152,6 @@ export function publicConfig(): PublicConfig {
       : undefined,
     weatherCity: c.weatherCity,
     memoryModel: c.memoryModel,
-    hasMapsKey: (c.mapsApiKey ?? '').length > 0,
     autoLaunch: c.autoLaunch ?? false
   }
 }

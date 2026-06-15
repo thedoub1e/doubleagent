@@ -189,7 +189,7 @@ export interface PublicConfigView {
   spriteSheet?: SpriteDims
   weatherCity: string
   memoryModel: string
-  hasMapsKey: boolean
+  autoLaunch: boolean
 }
 
 contextBridge.exposeInMainWorld('api', api)

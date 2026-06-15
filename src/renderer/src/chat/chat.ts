@@ -77,10 +77,6 @@ root.innerHTML = `
           <span>API Key</span>
           <input id="inp-key" type="password" placeholder="粘贴你的 Key" autocomplete="off" />
         </label>
-        <label class="field">
-          <span>Google Maps 密钥（选填，填了才能推荐附近好吃好玩）</span>
-          <input id="inp-maps-key" type="password" placeholder="粘贴 Google Maps API Key" autocomplete="off" />
-        </label>
         <label class="field-check">
           <input id="chk-autolaunch" type="checkbox" />
           <span>开机自动启动小狗（开机就有它陪着你）</span>
@@ -120,7 +116,6 @@ const memoryModelSel = el<HTMLSelectElement>('sel-memory-model')
 const baseUrlField = el<HTMLLabelElement>('field-baseurl')
 const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
-const mapsKeyInput = el<HTMLInputElement>('inp-maps-key')
 const autoLaunchChk = el<HTMLInputElement>('chk-autolaunch')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
 const attachmentsEl = el<HTMLDivElement>('attachments')
@@ -503,7 +498,6 @@ async function loadConfig(): Promise<void> {
   if (findPreset(cfg.provider)) providerSel.value = cfg.provider
   applyProvider(providerSel.value, cfg.model, cfg.baseUrl, cfg.memoryModel)
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
-  mapsKeyInput.placeholder = cfg.hasMapsKey ? '已保存（留空＝不修改）' : '粘贴 Google Maps API Key'
   autoLaunchChk.checked = cfg.autoLaunch
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
   void refreshVision()
@@ -524,11 +518,8 @@ async function saveConfig(): Promise<void> {
     autoLaunch: autoLaunchChk.checked
   }
   if (keyInput.value.trim().length > 0) patch.apiKey = keyInput.value.trim()
-  if (mapsKeyInput.value.trim().length > 0) patch.mapsApiKey = mapsKeyInput.value.trim()
   const cfg = await window.api.config.set(patch)
   keyInput.value = ''
-  mapsKeyInput.value = ''
-  mapsKeyInput.placeholder = cfg.hasMapsKey ? '已保存（留空＝不修改）' : '粘贴 Google Maps API Key'
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   void refreshVision() // 换模型后刷新附图按钮可见性
   settingsHint.textContent = '已保存 ✓'
