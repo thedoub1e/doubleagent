@@ -80,8 +80,11 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ## 📌 现状速览 + 待办队列（2026-06-15 更新，供新会话接手 — 先读这段）
 
-**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**211 过+25 跳过**。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
+**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**220 过+26 跳过**。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
 **人工验收手册**：`验收清单.md`(35 项)。
+
+**🆕 本程(2026-06-15 下午)做完**：① 小优化三连(set_briefing 对话改简报/画像注入预算 top-N `selectInjectableFacts`/抽取 debounce 8s) ② 开机自启动(设置面板勾选,修了「从源码运行 app.isPackaged 恒 false → 自启动永久静默失效」隐患,改 path+args) ③ README 功能介绍补全(agent 实干/生活帮手/陪伴,口语化) ④ **撤除 Google Maps 附近推荐**(用户先做后撤,find_nearby/Maps 密钥整套删,做饭建议保留) ⑤ **MCP 接入暂缓·标 backlog**(用户拍板 YAGNI)。
+**⏳ 仅剩真机/真网收尾(我替不了,待用户)**：README 截图(真机截屏放 docs/screenshots/)、伴侣国外测 api.minimaxi.com 可达、自启动一次 logout/login 验证、提醒事项首次 TCC 授权验收(薄片 v0 唯一剩项)。
 
 **🟢 已完成大块(2026-06-14~15，均测过+提交)**：
 - **Path B 能力引擎 Phase 0~3 完成**：tools/ 注册引擎(registry+types)；能力工具 read_file/list_dir/search_files/web_search(Bing)/fetch_url/write_file/run_command（find_nearby/Google Places 已于 2026-06-15 按用户要求撤除）；小白安全层(safety.ts 沙箱/shell黑名单/SSRF/敏感文件 + danger 工具 registry 中央把关 prepare→确认→run + 确认卡片 UI + auditLog)；人情味由多轮循环+人设覆盖。Phase 4 MCP 未做。
@@ -137,7 +140,7 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ### 待办队列（新会话按此推进，2026-06-15）
 0. ~~**[待用户操作]** Google Places 位置推荐~~ ❌ **已撤除(用户 2026-06-15 拍板不搞了)**：find_nearby 工具 + Maps 密钥(config/UI/preload/env)整套干净移除，placesTool.ts/test 删除；「不知道吃什么/做饭」建议保留(无需 key，小狗结合口味聊+web_search 查菜谱/本地推荐)。详见 §「待议·Google Maps」已划掉。
-A. **[基础设施/打磨 · 用户选定可自排做]** ① MCP 接入(Phase 4,中等工程,解锁挂任意 MCP server) ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
+A. **[基础设施/打磨 · 用户选定可自排做]** ① ~~MCP 接入(Phase 4)~~ ⏸️ **暂缓·标 backlog(用户 2026-06-15 拍板「先不做」)**：YAGNI——目前没有具体想接的 MCP server，伴侣(电脑小白)也不会自己配 server，没有预配好的 server 就用不上。将来真有要接的 server(如 Notion/音乐/某数据源)再做；做时务必把外部 server 的写/执行工具接进现有「危险确认+沙箱」护栏。 ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
 B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
 1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。
 2. **[会话管理·✅ 已实现+自动化验收 2026-06-14]** 多会话 + 全局共享画像 + 靠谱护栏**全部落地并自动测过**。
