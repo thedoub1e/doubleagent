@@ -885,12 +885,23 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
   )
 })
 
-// 开机自启动：macOS/Windows 用系统登录项；非打包(dev)下不动系统设置，避免把 dev electron 注册进登录项。
+// 开机自启动：macOS/Windows 用系统登录项。
+// 本产品「从源码 npm start 运行、不打包 .app」→ app.isPackaged 恒为 false，
+// 故不能用 isPackaged 当开关（那样自启动永远失效）。从源码时显式把登录项指向
+// 「electron 本体 + 本应用路径」，让系统登录时能真正拉起小狗；打包后用默认 path。
 function applyLoginItem(enabled: boolean): void {
   if (process.platform !== 'darwin' && process.platform !== 'win32') return
-  if (!app.isPackaged) return // dev 跑的是 electron 本体，不该写进开机启动
   try {
-    app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false })
+    const opts: Parameters<typeof app.setLoginItemSettings>[0] = {
+      openAtLogin: enabled,
+      openAsHidden: false
+    }
+    if (!app.isPackaged) {
+      // 从源码运行：登录时执行 `electron <appPath>` 才能启动本应用（而非裸 electron）。
+      opts.path = process.execPath
+      opts.args = [app.getAppPath()]
+    }
+    app.setLoginItemSettings(opts)
   } catch {
     // 设置登录项失败（权限/平台差异）静默降级：不影响主流程
   }
