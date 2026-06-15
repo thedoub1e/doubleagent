@@ -138,9 +138,36 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 **经过**：曾实现 find_nearby(Google Places searchText)+设置里 Maps 密钥框，待用户给 key 验收。**用户 2026-06-15 拍板「不搞谷歌地图接入附近吃的了」→ 整套干净移除**(placesTool.ts/test 删、ALL_TOOL_MODULES 去掉、config.mapsApiKey/publicConfig.hasMapsKey/preload/env.d.ts/renderer Maps 密钥框/GOOGLE_MAPS_API_KEY 回退 全删、todayHint 的 find_nearby 路由删)。
 **保留**：「不知道吃什么/想做饭/想找附近吃的」→ 小狗结合她口味聊家常菜 + web_search 查菜谱或本地推荐(无需 key、无需 Google)。
 
+## 🔄 自更新（热升级）方案（用户 2026-06-15 提 + 拍板路线，设计已定·待实现）
+
+**需求**：让小狗**自己拉 GitHub 升级**，且**绝不丢她本地已存的记录**（"热升级、不覆盖"）。送电脑小白的礼物，升级不能让她碰命令行。
+
+**✅ 数据安全=架构已天然满足（不用额外做）**：代码与记录是**物理隔离的两个目录**——
+- 代码：`~/.../doubleagent/`（git 仓库，升级时整体替换）。
+- 记录：`app.getPath('userData')` = `~/Library/Application Support/doubleagent/`，存 `config.json / sessions.json / history.json / memory.json / profile.json(画像) / pomodoro.json / fired.json / audit.log / 自定义形象`，**git 碰不到**。`.env`(API key) 在仓库根但 `.gitignore` 忽略，`git pull`/`git reset --hard`(只清已跟踪文件、不删未跟踪) 都不动它。
+- → 升级只换代码目录，记录住在另一个目录。**"不覆盖记录" 已经成立**，缺的只是"自动拉取+重建+重启+失败回滚"的自动化。
+
+**🔧 现状缺口**：① **没有任何自更新机制**（今天升级 = 人手动 `git pull && npm install && npm run build && 重启`）。② 跨版本数据迁移只有零散 ad-hoc（如多会话那次），**无 `dataVersion` 有序迁移框架**。
+
+**✅ 已拍板技术路线（用户 2026-06-15）= git clone + 自更新**（非 ZIP 替换）：
+- 前提：她那份代码必须是 **git clone**（有 `.git`）→ **README 安装流程要去掉 ZIP 下载选项，改 GitHub Desktop/clone 唯一路径**，且 git 需在机器上可用（GitHub Desktop 自带）。
+
+**设计（check → 征得同意 → pull → install → build → relaunch，带回滚 + 迁移备份）**：
+1. **检查**：定期(或设置里点「检查更新」) `git fetch` 比对本地 HEAD vs `origin/main`（或比 package.json version）。有新版→**头顶气泡问她**「我有新版本啦，要更新吗?」。**绝不静默自动更新**（礼物要稳，给她知情权）。
+2. **应用**（她点头后）：记下当前 commit SHA → `git pull --ff-only`（只快进；本地若意外有改动则安全中止）→ 需要时 `npm install`（package-lock 变了才跑）→ `npm run build` → `app.relaunch()+app.exit()` 重启进新代码。全程头顶/聊天窗给进度，别让她干等。
+3. **回滚（电脑小白命根子）**：build 或启动失败 → `git reset --hard <旧SHA>` 重建旧版重启，**绝不把她留在打不开的小狗前**；并告诉她「这次没更新成，已回到原来的样子，你的记录都在」。
+4. **跨版本数据迁移**：正式化 `dataVersion`（存 config）+ 启动时按版本有序迁移；**迁移前把 userData 关键文件备份到 `userData/backup/<旧版本>/`**（廉价保险，迁移写坏也能捞回）。
+5. **安全**：自更新只认 `origin` 指向的官方仓库；pull 前校验 remote URL；build 在她机器本地跑（无远程代码执行风险，符合可审计红线）。
+
+**风险/边界**：① git/网络/`npm install` 可能失败且耗时→必须进度+优雅失败+回滚兜底。② 升级后第一次启动要先跑数据迁移再开窗。③ 守红线：不引入额外后端，全本地 git+npm，可审计。
+
+**文件改动（预估，待实现）**：新 `src/main/updater.ts`(git fetch/compare/pull/build/rollback，execFile 跑 git/npm 防注入) + `dataVersion` 迁移框架(可新 `src/main/migrate.ts`) + 设置面板「检查更新」入口 + 头顶气泡更新提示 + README 安装改 clone-only。验收=造一个落后 commit→检查到新版→点更新→拉取重建重启进新版+记录全在；故意 build 失败→自动回滚旧版+记录全在。
+
 ### 待办队列（新会话按此推进，2026-06-15）
 0. ~~**[待用户操作]** Google Places 位置推荐~~ ❌ **已撤除(用户 2026-06-15 拍板不搞了)**：find_nearby 工具 + Maps 密钥(config/UI/preload/env)整套干净移除，placesTool.ts/test 删除；「不知道吃什么/做饭」建议保留(无需 key，小狗结合口味聊+web_search 查菜谱/本地推荐)。详见 §「待议·Google Maps」已划掉。
 A. **[基础设施/打磨 · 用户选定可自排做]** ① ~~MCP 接入(Phase 4)~~ ⏸️ **暂缓·标 backlog(用户 2026-06-15 拍板「先不做」)**：YAGNI——目前没有具体想接的 MCP server，伴侣(电脑小白)也不会自己配 server，没有预配好的 server 就用不上。将来真有要接的 server(如 Notion/音乐/某数据源)再做；做时务必把外部 server 的写/执行工具接进现有「危险确认+沙箱」护栏。 ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
+A2. **[自更新·热升级 · 设计已定待实现]** 让小狗自拉 GitHub 升级且不丢记录。**数据安全已天然满足**(代码在仓库/记录在 userData,物理隔离)；缺自动化:检查→征同意→`git pull --ff-only`→install→build→`app.relaunch()`,带 build 失败 `git reset --hard` 回滚 + `dataVersion` 有序迁移 + 迁移前 userData 备份。路线已拍板=**git clone 式**(README 安装改 clone-only,去掉 ZIP)。详见 §「自更新（热升级）方案」。**待用户拍板要不要现在实现**。
+
 B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
 1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。
 2. **[会话管理·✅ 已实现+自动化验收 2026-06-14]** 多会话 + 全局共享画像 + 靠谱护栏**全部落地并自动测过**。
