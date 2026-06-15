@@ -78,10 +78,19 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 **下一步**：从 **Phase 0(工具注册表重构)** 起手——纯重构、行为等价、风险最低、是后面所有能力的地基。
 
-## 📌 现状速览 + 待办队列（2026-06-14，供新会话接手 — 先读这段）
+## 📌 现状速览 + 待办队列（2026-06-15 更新，供新会话接手 — 先读这段）
 
-**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=206 过+22 跳过。联网真模型测试：`SCENARIO_LIVE=1 npx vitest run test/scenario.live.test.ts`(14 工具选择) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。
-**人工验收手册**：`验收清单.md`(35 项,A多会话/B记忆/C只读能力/D安全层/E回归)。
+**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**211 过+25 跳过**。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
+**人工验收手册**：`验收清单.md`(35 项)。
+
+**🟢 已完成大块(2026-06-14~15，均测过+提交)**：
+- **Path B 能力引擎 Phase 0~3 完成**：tools/ 注册引擎(registry+types)；能力工具 read_file/list_dir/search_files/web_search(Bing)/fetch_url/write_file/run_command + find_nearby(Google Places,需 mapsApiKey)；小白安全层(safety.ts 沙箱/shell黑名单/SSRF/敏感文件 + danger 工具 registry 中央把关 prepare→确认→run + 确认卡片 UI + auditLog)；人情味由多轮循环+人设覆盖。Phase 4 MCP 未做。
+- **多会话+全局画像+靠谱护栏**(sessions.ts/左侧栏)；**记忆护栏**(低置信不注入/保守抽取/纠正高置信/手改权威/**吐槽气话不记负面**)；**情绪支持**(倾听者,先共情不塞工具)；**人设重平衡**(先接住话、工具克制不推销、绝不编造文件内容)。
+- **思考过程披露 UI**(💭 思考中→流式思考可收起 + 🔍 正在上网查/⚙️ 跑命令 活动状态)；**总结式会话标题**;主动消息只走通知+头顶气泡不进对话框。
+- **联网修复**：`setDefaultResultOrder('ipv4first')` 修 Node fetch IPv6 死路由超时 + web_search(Bing 宽容解析)。
+
+**🔴 重要定位(2026-06-15)**：她是 **i 人(内向)** → 做**贴心生活助手+陪伴**，不是沟通工具。新功能优先生活助手属性。
+**❌ 不做**：小红书爬虫(用户后续单独项目)。**💡 待议**：Google Maps 已做工具待用户给 key 验收；每天找房源(自动 listings 不可行,见下方)。
 **人工验收已发现并修的 3 真问题(2026-06-14)**：①危险操作确认时窗口被失焦隐藏→用户得重开:blur 守卫(pendingConfirms.size>0 不隐藏)+requestConfirm 先登记再 showChat;②确认卡片后回答错位在卡片上方→确认时移除当前流式气泡,全文于卡片下方新气泡渲染(onDone 兜底补气泡);③**模型编造文件内容**(假装读了 ~/.ssh/id_rsa 私钥,实际 read_file 已拒)→人设加「绝不编造铁律」(文件/命令事实必须用工具拿真实结果,拒绝就如实说,绝不假装看过)+「只读优先用专门工具免确认」。全量能力测试验证:拒读密钥零泄露+不编造。
 关掉残留 Electron 用 `pkill -f "doubleagent/node_modules/electron"`（参数仅 `.`，普通 pkill 匹配不到）。
 
@@ -126,8 +135,10 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 **想法**：接 Google Maps（用户环境可用 Google），让小狗按**她的位置**推荐附近好吃好玩的——出去吃/在家做饭不知道吃啥都能问小狗。
 **落地评估**：用 **Google Places API**（官方/JSON/稳，优于爬搜索引擎）。需 ①用户提供一个免费 Google Maps API key（像模型 key 一样存本地）②位置来源=现有 IP 定位(ip-api 给城市级坐标，附近店可能偏；或她说「我在XX区」)。新 `find_nearby(关键词/类型)` 工具→Places Nearby Search。**待用户确认要不要做 + 提供 key**。
 
-### 待办队列（新会话按此推进）
-0. **[🎯 当前主线 · Path B 能力引擎]** 从 **Phase 0 工具注册表重构**起手(纯重构行为不变)→ Phase 1 能力工具(文件/网络/写入/shell)→ Phase 2 小白安全层 → Phase 3 人情味翻译 → Phase 4 MCP。详见 §「能力引擎升级方案（Path B）」。每阶段 TDD+自动测过再交人工。
+### 待办队列（新会话按此推进，2026-06-15）
+0. **[待用户操作]** Google Places 位置推荐已做好(`find_nearby` 工具+设置里 Maps 密钥框)，**待用户拿一个免费 Google Maps key(启用 Places API New)填进设置或 .env GOOGLE_MAPS_API_KEY** 才能 live 验。做饭建议已可用(无需 key)。
+A. **[基础设施/打磨 · 用户选定可自排做]** ① MCP 接入(Phase 4,中等工程,解锁挂任意 MCP server) ② 小优化:`set_briefing`(简报时间对话改)/画像注入预算(top-N,renderProfile 加优先级,画像长大不散注意力,纯函数+测)/抽取 debounce(空闲时抽省 key) ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
+B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
 1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。
 2. **[会话管理·✅ 已实现+自动化验收 2026-06-14]** 多会话 + 全局共享画像 + 靠谱护栏**全部落地并自动测过**。
    - 实现:第一步骨架(sessionsUtil/sessions.ts/左侧栏 UI/迁移)+ 第二步护栏(低置信不注入/保守抽取/口头纠正高置信/面板手改=权威 constant/顺口确认)+ D1 修复(回复流式中禁切/建/删会话,blockedWhileStreaming 拦截+提示)。
