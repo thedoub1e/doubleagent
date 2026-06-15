@@ -55,6 +55,8 @@ interface DoubleAgentApi {
     onDone: (cb: (fullText: string) => void) => void
     onError: (cb: (message: string) => void) => void
     onProactive: (cb: (message: string) => void) => void
+    onThinking: (cb: (delta: string) => void) => void
+    onActivity: (cb: (label: string) => void) => void
   }
   config: {
     get: () => Promise<PublicConfigView>

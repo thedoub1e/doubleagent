@@ -148,6 +148,9 @@ providerSel.addEventListener('change', () => applyProvider(providerSel.value))
 let streaming = false
 let activeBubble: HTMLDivElement | null = null
 let activeRaw = ''
+// 思考/活动披露面板（Claude Code 式「思考过程 + 正在做什么」），出现在回答气泡上方。
+let streamPanel: HTMLDivElement | null = null
+let thinkRaw = ''
 
 // 助手气泡走 Markdown 渲染（已在 markdown.ts 内先转义防 XSS）；用户气泡纯文本。
 function setBubbleContent(bubble: HTMLDivElement, role: 'user' | 'assistant', text: string): void {
@@ -171,6 +174,50 @@ function setStreaming(on: boolean): void {
   streaming = on
   sendBtn.textContent = on ? '■' : '↑'
   sendBtn.classList.toggle('is-stop', on)
+}
+
+// ---- 思考/活动披露面板 ----
+function ensureStreamPanel(): HTMLDivElement {
+  if (streamPanel) return streamPanel
+  const panel = document.createElement('div')
+  panel.className = 'stream-panel'
+  panel.innerHTML =
+    '<div class="stream-status">💭 思考中…</div><div class="think-detail" hidden></div>'
+  const anchor = activeBubble?.closest('.msg')
+  if (anchor) msgsEl.insertBefore(panel, anchor) // 思考在上、回答在下
+  else msgsEl.appendChild(panel)
+  streamPanel = panel
+  msgsEl.scrollTop = msgsEl.scrollHeight
+  return panel
+}
+function setActivity(label: string): void {
+  const s = ensureStreamPanel().querySelector('.stream-status')
+  if (s) s.textContent = label
+}
+function appendThinking(delta: string): void {
+  thinkRaw += delta
+  const d = ensureStreamPanel().querySelector('.think-detail') as HTMLElement
+  d.hidden = false
+  d.textContent = thinkRaw // textContent 防 XSS
+  msgsEl.scrollTop = msgsEl.scrollHeight
+}
+/** 流结束：没思考内容就移除占位面板；有思考则收起成可点开的「💭 想法」。 */
+function finishStreamPanel(): void {
+  if (!streamPanel) return
+  if (thinkRaw.trim().length === 0) {
+    streamPanel.remove()
+  } else {
+    const status = streamPanel.querySelector('.stream-status') as HTMLElement
+    const detail = streamPanel.querySelector('.think-detail') as HTMLElement
+    detail.hidden = true
+    status.textContent = '💭 看看小狗刚才的思考'
+    status.classList.add('think-toggle')
+    status.addEventListener('click', () => {
+      detail.hidden = !detail.hidden
+    })
+  }
+  streamPanel = null
+  thinkRaw = ''
 }
 
 function showBanner(text: string): void {
@@ -199,8 +246,10 @@ function send(): void {
   pendingImages = []
   renderThumbs()
   activeRaw = ''
-  activeBubble = addMessage('assistant', '')
-  activeBubble.classList.add('is-typing')
+  activeBubble = null
+  thinkRaw = ''
+  streamPanel = null
+  ensureStreamPanel() // 立刻显示「💭 思考中…」反馈（回答气泡由首个 delta 创建在其下方）
   setStreaming(true)
   showBanner('')
   window.api.chat.send(text, images.length > 0 ? images : undefined)
@@ -278,8 +327,16 @@ composeEl.addEventListener('drop', (e) => {
   if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files)
 })
 
+window.api.chat.onThinking((delta) => appendThinking(delta))
+window.api.chat.onActivity((label) => setActivity(label))
+
 window.api.chat.onDelta((delta) => {
   if (!activeBubble) {
+    // 答案开始流式：若思考面板只是「思考中…」占位（无思考内容），就撤掉，让答案干净呈现。
+    if (streamPanel && thinkRaw.trim().length === 0) {
+      streamPanel.remove()
+      streamPanel = null
+    }
     activeRaw = ''
     activeBubble = addMessage('assistant', '')
   }
@@ -291,6 +348,7 @@ window.api.chat.onDelta((delta) => {
 })
 
 window.api.chat.onDone((fullText) => {
+  finishStreamPanel() // 收起/移除思考面板
   const clean = parseEmotion(fullText).clean
   if (activeBubble) {
     activeBubble.classList.remove('is-typing')
@@ -357,6 +415,7 @@ window.api.tool.onConfirm((req) => {
 })
 
 window.api.chat.onError((message) => {
+  finishStreamPanel() // 清掉思考面板
   // 防御：万一传来非字符串，也绝不显示 [object Object]。
   const text =
     typeof message === 'string'

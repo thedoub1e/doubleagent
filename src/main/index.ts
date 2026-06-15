@@ -792,6 +792,20 @@ ipcMain.on('chat:abort', () => abortChat())
 // 当前模型是否支持看图（渲染层据此显示/隐藏附图按钮）。
 ipcMain.handle('chat:model-vision', () => modelSupportsImages(loadConfig()))
 
+/** 把即将执行的工具名转成给用户看的「正在做什么」人话。 */
+function activityLabel(names: string[]): string {
+  const has = (n: string): boolean => names.includes(n)
+  if (has('web_search') || has('fetch_url')) return '🔍 正在上网查…'
+  if (has('run_command')) return '⚙️ 正在运行命令…'
+  if (has('write_file')) return '✍️ 正在写文件…'
+  if (has('read_file') || has('list_dir') || has('search_files')) return '📂 正在翻看文件…'
+  if (has('list_reminders')) return '📋 正在查待办…'
+  if (has('get_weather')) return '🌤️ 正在看天气…'
+  if (has('start_focus') || has('schedule_focus')) return '🍅 正在安排专注…'
+  if (has('create_reminder') || has('set_daily_reminder') || has('add_countdown')) return '📝 正在记下来…'
+  return '🐾 正在帮你处理…'
+}
+
 // ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
 ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
   const trimmed = (text ?? '').trim()
@@ -836,7 +850,9 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
         send('chat:error', message)
         setMood('idle')
       },
-      onToolCalls: (calls) => petRegistry.dispatch(calls, toolContext(base.reminderList))
+      onToolCalls: (calls) => petRegistry.dispatch(calls, toolContext(base.reminderList)),
+      onThinking: (delta) => send('chat:thinking', delta),
+      onActivity: (names) => send('chat:activity', activityLabel(names))
     },
     petRegistry.toolDefs(),
     imgs

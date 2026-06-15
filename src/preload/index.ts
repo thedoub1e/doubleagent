@@ -50,6 +50,12 @@ const api = {
     },
     onProactive: (cb: (message: string) => void): void => {
       ipcRenderer.on('chat:proactive', (_e, message: string) => cb(message))
+    },
+    onThinking: (cb: (delta: string) => void): void => {
+      ipcRenderer.on('chat:thinking', (_e, delta: string) => cb(delta))
+    },
+    onActivity: (cb: (label: string) => void): void => {
+      ipcRenderer.on('chat:activity', (_e, label: string) => cb(label))
     }
   },
 

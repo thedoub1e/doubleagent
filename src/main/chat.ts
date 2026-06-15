@@ -20,6 +20,10 @@ export interface StreamHandlers {
   onError: (message: string) => void
   /** 模型发起工具调用时回调：调用方执行工具，返回每个调用的结果（回喂模型继续）。 */
   onToolCalls?: (calls: ToolCall[]) => Promise<ToolResult[]>
+  /** 思考流（reasoning 模型的思考过程）增量，用于向用户披露「小狗在想什么」。 */
+  onThinking?: (delta: string) => void
+  /** 即将执行某些工具时的活动披露（工具名列表），用于显示「正在上网查 / 正在读文件」等。 */
+  onActivity?: (toolNames: string[]) => void
 }
 
 /** 把任意错误(字符串/Error/带 message 的对象/纯对象)安全转成可读文案，绝不产出 "[object Object]"。 */
@@ -168,6 +172,8 @@ export async function runChat(
         if (event.type === 'text_delta' && typeof event.delta === 'string') {
           full += event.delta
           handlers.onDelta(event.delta)
+        } else if (event.type === 'thinking_delta' && typeof event.delta === 'string') {
+          handlers.onThinking?.(event.delta) // 思考过程披露给用户
         } else if (event.type === 'toolcall_end' && event.toolCall) {
           roundToolCalls.push(event.toolCall)
         } else if (event.type === 'done') {
@@ -181,6 +187,8 @@ export async function runChat(
       // 没有工具调用 → 本轮就是最终回复，结束循环。
       if (roundToolCalls.length === 0 || !handlers.onToolCalls) break
 
+      // 即将执行工具 → 披露活动（「正在上网查 / 读文件 / 跑命令」）。
+      handlers.onActivity?.(roundToolCalls.map((c) => c.name))
       // 回放：把模型这轮的 assistant 消息（含 toolCall）原样追加，再追加各工具结果。
       if (assistantMsg) messages.push(assistantMsg)
       const results = await handlers.onToolCalls(roundToolCalls)
