@@ -1,6 +1,11 @@
 import { join } from 'node:path'
+import { setDefaultResultOrder } from 'node:dns'
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, screen, shell } from 'electron'
 import { loadDotEnv } from './env'
+
+// 联网修复：很多机器有「死的 IPv6 路由」，Node fetch 默认先试 IPv6 会挂起超时（用户「网没连上」的真因）。
+// 强制 DNS 优先返回 IPv4 → fetch_url/web_search 不再卡在 IPv6。
+setDefaultResultOrder('ipv4first')
 import { loadConfig, publicConfig, saveConfig, type Reminder } from './config'
 import {
   abortChat,
@@ -278,7 +283,8 @@ function todayHint(now: Date): string {
     '· 她想清静/被打扰够了 → set_supervision(false)；想恢复督促 → set_supervision(true)。\n' +
     '【你还能真的在她电脑上动手帮忙（她是电脑小白，靠你解决电脑上的事）】：\n' +
     '· 查看文件/代码/配置内容 → read_file；看文件夹里有什么 → list_dir；找某个文件在哪 → search_files。\n' +
-    '· 查资料/看文档/查报错含义 → fetch_url。\n' +
+    '· 开放式查资料/找信息/查报错怎么解决（如「马德里有哪些奶茶店」）→ web_search（搜索）；' +
+    '想看某个具体网址的内容 → fetch_url。先搜再按需打开。\n' +
     '· 需要改/新建文件 → write_file；需要跑命令排查或修电脑小毛病（装包、清缓存、看状态等）→ run_command。\n' +
     '  这两个是「动手改电脑」的操作，系统会先弹确认给她点，你正常调用即可；危险命令系统会自动拦。\n' +
     '【重要·优先用专门工具】只读的事（看/列/找文件）**一律用 read_file/list_dir/search_files**，它们免确认、更顺；' +

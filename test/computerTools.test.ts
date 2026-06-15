@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { COMPUTER_TOOL_MODULES } from '../src/main/tools/computerTools'
+import { COMPUTER_TOOL_MODULES, parseSearchResults } from '../src/main/tools/computerTools'
 import { createRegistry } from '../src/main/tools/registry'
 import type { ToolContext, ToolModule } from '../src/main/tools/types'
 
@@ -134,6 +134,25 @@ describe('run_command（危险→registry 中央确认 + 黑名单）', () => {
     }
     expect(confirm).not.toHaveBeenCalled()
     expect(audited.length).toBe(0)
+  })
+})
+
+describe('parseSearchResults (Bing 宽容解析)', () => {
+  const sample =
+    '<ol id="b_results">' +
+    '<li class="b_algo"><h2><a href="https://a.com/1">标题甲</a></h2><p>摘要甲内容</p></li>' +
+    '<li class="b_algo"><div><a href="https://b.com/2">标题乙</a></div><p>摘要乙</p></li>' +
+    '<li class="b_algo"><a href="https://a.com/1">重复链接应去重</a></li>' +
+    '</ol>'
+  it('抓出每块的标题文本+真实网址，去重', () => {
+    const r = parseSearchResults(sample, 5)
+    expect(r.length).toBe(2) // 第三块 url 重复被去掉
+    expect(r[0].url).toBe('https://a.com/1')
+    expect(r[0].title).toContain('标题甲')
+    expect(r[1].url).toBe('https://b.com/2')
+  })
+  it('空/无结果页返回空数组', () => {
+    expect(parseSearchResults('<html>no results</html>')).toEqual([])
   })
 })
 

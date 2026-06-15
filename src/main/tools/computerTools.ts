@@ -168,6 +168,63 @@ const fetchUrlTool: ToolModule = {
   }
 }
 
+/** 宽容解析 Bing 搜索结果页（b_algo 块 → 标题+摘要文本、真实网址）。纯函数、可单测。
+ *  用宽容法(每块抓第一个 https 链接 + 可见文字)，抗 Bing 标记改版。 */
+export function parseSearchResults(html: string, max = 5): { title: string; url: string }[] {
+  const strip = (s: string): string =>
+    s
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#?\w+;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const blocks = html.match(/<li class="b_algo"[\s\S]*?(?=<li class="b_algo"|<\/ol>|<\/main>|$)/g) || []
+  const out: { title: string; url: string }[] = []
+  const seen = new Set<string>()
+  for (const b of blocks) {
+    if (out.length >= max) break
+    const href = /<a[^>]*href="(https?:\/\/[^"]+)"/.exec(b)
+    if (!href || seen.has(href[1])) continue
+    const text = strip(b).slice(0, 180)
+    if (text.length === 0) continue
+    seen.add(href[1])
+    out.push({ title: text, url: href[1] })
+  }
+  return out
+}
+
+const webSearchTool: ToolModule = {
+  name: 'web_search',
+  description:
+    '上网搜索（开放式查资料/找信息时用，如「马德里有哪些奶茶店」「这个报错怎么解决」）。' +
+    '返回前几条结果的标题摘要+网址；想看某条的具体内容再用 fetch_url 打开它。',
+  parameters: {
+    type: 'object',
+    properties: { query: { type: 'string', description: '搜索关键词/问题' } },
+    required: ['query']
+  },
+  async run(args) {
+    const q = String(args.query ?? '').trim()
+    if (q.length === 0) return '要搜什么呢？给我个关键词'
+    try {
+      const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(q)}&setlang=zh-CN`, {
+        signal: AbortSignal.timeout(12_000),
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+        }
+      })
+      if (!res.ok) return `搜索没成功（HTTP ${res.status}）`
+      const items = parseSearchResults(await res.text(), 5)
+      if (items.length === 0) return `没搜到「${q}」相关的结果`
+      return items.map((it, i) => `${i + 1}. ${it.title}\n   ${it.url}`).join('\n\n')
+    } catch (e) {
+      return `搜索没成功：${(e as Error).message}（可能没联网或被限流）`
+    }
+  }
+}
+
 const writeFileTool: ToolModule = {
   name: 'write_file',
   description:
@@ -257,6 +314,7 @@ export const COMPUTER_TOOL_MODULES: ToolModule[] = [
   readFileTool,
   listDirTool,
   searchFilesTool,
+  webSearchTool,
   fetchUrlTool,
   writeFileTool,
   runCommandTool
