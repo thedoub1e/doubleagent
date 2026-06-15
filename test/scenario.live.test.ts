@@ -37,6 +37,7 @@ function hint(now: Date): string {
     '· 要做的事/截止/约会 → create_reminder（dueISO 本地时间，相对日期据「现在」推算）。\n' +
     '· 做完了某事 → complete_reminder。重要日子(考试/回国/生日) → add_countdown。\n' +
     '· 每天定点提醒（每天9点提醒我背单词）→ set_daily_reminder；不要了 → cancel_daily_reminder。\n' +
+    '· 改早安/晚安简报时间或开关（早安简报改到8点/晚上别播报了）→ set_briefing。\n' +
     '· 想专注/番茄钟一段时间 → start_focus；想停 → stop_focus。\n' +
     '· 按每天/每周计划自动专注（每天10点专注1小时）→ schedule_focus；取消 → cancel_focus_plan。\n' +
     '· 提到自己在哪/搬家 → set_location。想清静 → set_supervision(false)；恢复 → set_supervision(true)。\n' +
@@ -181,6 +182,13 @@ describe.skipIf(!LIVE)('场景测试 · 真实模型沙盒', () => {
     expect(r.tools).toContain('set_daily_reminder')
     const a = r.args[r.tools.indexOf('set_daily_reminder')]
     expect(String(a.time)).toMatch(/^0?9[:：]?0?0?/)
+  }, 40000)
+
+  it('改简报时间 → set_briefing(morning)', async () => {
+    const r = await runScenario('早安简报改到早上8点吧')
+    expect(r.tools).toContain('set_briefing')
+    const a = r.args[r.tools.indexOf('set_briefing')]
+    expect(String(a.which)).toBe('morning')
   }, 40000)
 
   it('计划式自动专注 → schedule_focus', async () => {

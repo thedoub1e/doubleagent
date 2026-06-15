@@ -273,6 +273,46 @@ const cancelFocusPlan: ToolModule = {
   }
 }
 
+const setBriefing: ToolModule = {
+  name: 'set_briefing',
+  description:
+    '当用户想改「早安/晚安简报」的时间或开关时调用（如「早安简报改到 8 点」「晚上别播报了」' +
+    '「每天 23 点跟我说晚安」）。早安简报播今日待办/天气/倒数日；晚安简报回顾今天有没有完成。',
+  parameters: {
+    type: 'object',
+    properties: {
+      which: {
+        type: 'string',
+        description: '改哪一个：早安简报=morning，晚安简报=evening'
+      },
+      time: { type: 'string', description: '简报时间，24 小时制 HH:MM，如 08:30、22:00（只调开关时可省略）' },
+      enabled: { type: 'boolean', description: '开=true / 关=false（只改时间时可省略）' }
+    },
+    required: ['which']
+  },
+  run(args) {
+    const which = String(args.which ?? '').trim().toLowerCase()
+    if (which !== 'morning' && which !== 'evening') return '没看懂要改早安(morning)还是晚安(evening)简报呢'
+    const hasTime = typeof args.time === 'string' && args.time.trim().length > 0
+    const hasEnabled = typeof args.enabled === 'boolean'
+    if (!hasTime && !hasEnabled) return '要改简报时间还是开关呀？给我个时间或者开/关吧'
+    const cfg = loadConfig()
+    const current = which === 'morning' ? cfg.morningBriefing : cfg.eveningBriefing
+    let time = current.time
+    if (hasTime) {
+      const t = normalizeTime(String(args.time))
+      if (!t) return '时间格式没看懂，需要 HH:MM（如 08:30）'
+      time = t
+    }
+    const enabled = hasEnabled ? Boolean(args.enabled) : current.enabled
+    const next = { time, enabled }
+    saveConfig(which === 'morning' ? { morningBriefing: next } : { eveningBriefing: next })
+    const label = which === 'morning' ? '早安简报' : '晚安简报'
+    if (!enabled) return `已关掉${label}啦，需要的话随时叫我开回来～`
+    return `好嘞，${label}设成每天 ${time} 啦 🐶`
+  }
+}
+
 const listReminders: ToolModule = {
   name: 'list_reminders',
   description: '当用户问她有哪些待办/提醒/今天要做什么、或想回顾清单时调用，读取她的提醒清单。',
@@ -315,6 +355,7 @@ export const PET_TOOL_MODULES: ToolModule[] = [
   stopFocus,
   scheduleFocus,
   cancelFocusPlan,
+  setBriefing,
   listReminders,
   getWeather
 ]

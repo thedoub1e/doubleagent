@@ -280,6 +280,7 @@ function todayHint(now: Date): string {
     '· 她说做完了某事 → complete_reminder。\n' +
     '· 她提到重要日子（考试/回国/生日/纪念日）→ add_countdown。\n' +
     '· 她想每天定点被提醒（「每天9点提醒我背单词」）→ set_daily_reminder；不想要了 → cancel_daily_reminder。\n' +
+    '· 她想改早安/晚安简报的时间或开关（「早安简报改到8点」「晚上别播报了」）→ set_briefing。\n' +
     '· 她想专注/番茄钟/陪学一段时间（「陪我专注25分钟」「学到下午3点」按「现在」时间换算分钟）→ start_focus；' +
     '想停下 → stop_focus。\n' +
     '· 她提到自己在哪/搬家了 → set_location。\n' +
@@ -363,6 +364,25 @@ async function maybeExtractProfile(): Promise<void> {
   if (ops.length === 0) return
   saveProfile(applyProfileOps(profile, ops, Date.now()))
   chatWindow?.webContents.send('profile:changed')
+}
+
+// 抽取 debounce：连发多条消息时只在「停顿」后抽一次，省抽取 key 调用、不卡回复。
+// 抽取始终读最新 history（slice(-4)），延后到停顿反而能囊括刚说完的整轮上下文。
+const EXTRACT_DEBOUNCE_MS = 8_000
+let extractTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleExtractProfile(): void {
+  if (extractTimer) clearTimeout(extractTimer)
+  extractTimer = setTimeout(() => {
+    extractTimer = null
+    void maybeExtractProfile()
+  }, EXTRACT_DEBOUNCE_MS)
+}
+// 退出前若还有待抽取，立刻补一次，避免最后一轮的新事实丢失。
+function flushExtractProfile(): void {
+  if (!extractTimer) return
+  clearTimeout(extractTimer)
+  extractTimer = null
+  void maybeExtractProfile()
 }
 
 // 首轮对话后给会话起一个「总结式」标题（仅自动标题、没起过、已有用户消息时）。便宜模型、不卡回复。
@@ -848,7 +868,7 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
         driveReplyMood(emotion)
         scheduleIdle()
         void maybeSummarize()
-        void maybeExtractProfile()
+        scheduleExtractProfile() // debounce：停顿后抽一次，省 key
         void maybeTitleSession()
       },
       onError: (message) => {
@@ -879,6 +899,9 @@ app.whenReady().then(() => {
     }
   })
 })
+
+// 退出前尽力补抽一次待处理的画像（best-effort；异步可能赶不上退出，属可接受的边缘损失）。
+app.on('before-quit', () => flushExtractProfile())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

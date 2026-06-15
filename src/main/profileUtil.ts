@@ -53,6 +53,9 @@ const LOW_CONFIDENCE = 0.5
 // 靠谱护栏：confidence 低于此值的事实「不主动注入、不驱动行为」（面板仍可见/可改）。
 // constant(关键安全事实如过敏) 不受此限，永远注入。
 export const INJECT_MIN_CONFIDENCE = 0.3
+// 注入预算：单次注入人设的事实条数上限。画像随使用长大后，全量注入会稀释模型注意力、
+// 抬高 token；超额时按优先级取 top-N（constant 永远保留），既省 token 又聚焦最重要的事。
+export const INJECT_MAX_FACTS = 24
 
 export function emptyProfile(): UserProfile {
   return { facts: [], updatedAt: 0 }
@@ -138,9 +141,34 @@ function isInjectable(f: ProfileFact): boolean {
   return Boolean(f.constant) || f.confidence >= INJECT_MIN_CONFIDENCE
 }
 
-/** 把画像渲染成注入人设的文本（按分类分组；推断/低置信标「推测」；极低置信不注入）。空→空串。 */
-export function renderProfile(profile: UserProfile): string {
+// 注入优先级打分：constant 最高，其次「用户明说(非推断)」，再次高置信。近期度做 sort 的次级 tiebreak。
+function injectPriority(f: ProfileFact): number {
+  let score = f.confidence // 0..1
+  if (!f.inferred) score += 10 // 明确陈述 > 推断
+  return score
+}
+
+/**
+ * 注入预算：可注入事实超过 max 时，按优先级取 top-N（constant 永远保留，不占名额上限语义但优先纳入）。
+ * 返回的事实保持在 profile.facts 里的原始顺序，渲染稳定。纯函数。
+ */
+export function selectInjectableFacts(profile: UserProfile, max = INJECT_MAX_FACTS): ProfileFact[] {
   const injectable = profile.facts.filter(isInjectable)
+  if (injectable.length <= max) return injectable
+  const constants = injectable.filter((f) => f.constant)
+  const rest = injectable.filter((f) => !f.constant)
+  const slots = Math.max(0, max - constants.length)
+  const rankedRest = rest
+    .slice()
+    .sort((a, b) => injectPriority(b) - injectPriority(a) || b.updatedAt - a.updatedAt)
+    .slice(0, slots)
+  const keep = new Set<ProfileFact>([...constants, ...rankedRest])
+  return injectable.filter((f) => keep.has(f)) // 原始顺序
+}
+
+/** 把画像渲染成注入人设的文本（按分类分组；推断/低置信标「推测」；极低置信不注入；超预算取 top-N）。空→空串。 */
+export function renderProfile(profile: UserProfile, max = INJECT_MAX_FACTS): string {
+  const injectable = selectInjectableFacts(profile, max)
   if (injectable.length === 0) return ''
   const lines: string[] = []
   for (const cat of CATEGORY_ORDER) {

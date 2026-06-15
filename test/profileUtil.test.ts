@@ -3,6 +3,7 @@ import {
   applyProfileOps,
   emptyProfile,
   renderProfile,
+  selectInjectableFacts,
   type ProfileFact,
   type ProfileOp
 } from '../src/main/profileUtil'
@@ -136,5 +137,56 @@ describe('renderProfile', () => {
       updatedAt: 1
     }
     expect(renderProfile(p)).toContain('对花生过敏')
+  })
+})
+
+describe('selectInjectableFacts — 注入预算 top-N', () => {
+  test('未超预算时全量返回（保持原始顺序）', () => {
+    const p = {
+      facts: [fact({ id: 'a' }), fact({ id: 'b' }), fact({ id: 'c' })],
+      updatedAt: 1
+    }
+    expect(selectInjectableFacts(p, 24).map((f) => f.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  test('超预算时按优先级取 top-N：明说>推断、高置信优先', () => {
+    const facts: ProfileFact[] = [
+      fact({ id: 'inferLow', inferred: true, confidence: 0.4 }),
+      fact({ id: 'explicitHigh', inferred: false, confidence: 0.9 }),
+      fact({ id: 'explicitMid', inferred: false, confidence: 0.6 })
+    ]
+    const chosen = selectInjectableFacts({ facts, updatedAt: 1 }, 2).map((f) => f.id)
+    expect(chosen).toContain('explicitHigh')
+    expect(chosen).toContain('explicitMid')
+    expect(chosen).not.toContain('inferLow') // 推断+低置信被预算挤掉
+  })
+
+  test('constant 永远纳入，即使预算很小且置信很低', () => {
+    const facts: ProfileFact[] = [
+      fact({ id: 'allergy', category: 'concern', content: '过敏', confidence: 0.1, constant: true }),
+      fact({ id: 'x', inferred: false, confidence: 0.9 }),
+      fact({ id: 'y', inferred: false, confidence: 0.85 })
+    ]
+    const chosen = selectInjectableFacts({ facts, updatedAt: 1 }, 1).map((f) => f.id)
+    expect(chosen).toContain('allergy')
+  })
+
+  test('近期度做次级 tiebreak：同优先级下较新者优先', () => {
+    const facts: ProfileFact[] = [
+      fact({ id: 'old', inferred: false, confidence: 0.8, updatedAt: 10 }),
+      fact({ id: 'new', inferred: false, confidence: 0.8, updatedAt: 99 })
+    ]
+    const chosen = selectInjectableFacts({ facts, updatedAt: 1 }, 1).map((f) => f.id)
+    expect(chosen).toEqual(['new'])
+  })
+
+  test('renderProfile 受预算约束：超额时只渲染 top-N', () => {
+    const facts: ProfileFact[] = [
+      fact({ id: 'keep', category: 'identity', content: '在马德里留学', inferred: false, confidence: 0.95 }),
+      fact({ id: 'drop', category: 'trait', content: '也许喜欢安静', inferred: true, confidence: 0.4 })
+    ]
+    const out = renderProfile({ facts, updatedAt: 1 }, 1)
+    expect(out).toContain('在马德里留学')
+    expect(out).not.toContain('也许喜欢安静')
   })
 })
