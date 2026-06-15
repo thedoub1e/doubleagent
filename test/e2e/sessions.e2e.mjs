@@ -148,6 +148,51 @@ try {
   await sleep(200)
   const status = (await chat.locator('.confirm-card .confirm-status').first().textContent()) ?? ''
   check('点允许后显示已允许状态', status.includes('已允许'), `实际「${status}」`)
+
+  // 11) 自更新（热升级）设置面板 UI（本程新增，真驱动 IPC→updater.ts 真跑 git）
+  await chat.locator('#btn-settings').click()
+  await sleep(200)
+  check('F 更新框渲染（检查更新按钮存在）', (await chat.locator('#btn-check-update').count()) === 1)
+  check('F「现在更新」按钮初始隐藏（没新版前不显示）', await chat.locator('#btn-apply-update').isHidden())
+  check('F 启动自动检查开关存在', (await chat.locator('#chk-autocheck').count()) === 1)
+
+  // 真点「检查更新」→ 走 update:check IPC → updater.ts 真在本仓库跑 git fetch+比对 → 状态栏出结果。
+  // 断言「状态栏出现非空结果」即证明整条链路通（最新版/有新版/友好错误 任一都算接线成功）。
+  await chat.locator('#btn-check-update').click()
+  let updateStatusText = ''
+  for (let i = 0; i < 80; i++) {
+    updateStatusText = ((await chat.locator('#update-status').textContent()) ?? '').trim()
+    if (updateStatusText.length > 0 && !updateStatusText.includes('正在看看')) break
+    await sleep(250)
+  }
+  check(
+    'F 点「检查更新」→ 真走 git → 状态栏出结果',
+    updateStatusText.length > 0 && !updateStatusText.includes('正在看看'),
+    `实际「${updateStatusText}」`
+  )
+
+  // 切「启动自动检查」开关 → 状态翻转（change 即存 config）
+  const autoCheck = chat.locator('#chk-autocheck')
+  const before11 = await autoCheck.isChecked()
+  await autoCheck.click()
+  await sleep(150)
+  check('F 自动检查开关可切换', (await autoCheck.isChecked()) === !before11)
+
+  // 展开模型设置 → 自启动开关存在、可切换、保存不崩
+  const setup = chat.locator('#setup')
+  if (!(await setup.evaluate((d) => d.open))) {
+    await chat.locator('#setup > summary').click().catch(() => {})
+    await sleep(150)
+  }
+  check('F 开机自启动开关存在', (await chat.locator('#chk-autolaunch').count()) === 1)
+  const autoLaunch = chat.locator('#chk-autolaunch')
+  const beforeAL = await autoLaunch.isChecked()
+  await autoLaunch.click()
+  await sleep(100)
+  await chat.locator('#btn-save').click() // 触发 config.set(autoLaunch) + 主进程 applyLoginItem（失败静默降级，不应崩）
+  await sleep(300)
+  const saveAlive = (await chat.locator('#btn-check-update').count()) === 1 // 页面仍在=没崩
+  check('F 切自启动+保存不崩溃', saveAlive && (await autoLaunch.isChecked()) === !beforeAL)
 } catch (e) {
   bad('E2E 运行异常', e?.message ?? String(e))
 } finally {

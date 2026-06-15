@@ -42,8 +42,8 @@ export function pendingMigrations(
     .sort((a, b) => a.version - b.version)
 }
 
-/** 迁移前把关键记录备份到 userData/backup/pre-v<target>/。best-effort，失败不阻断（但会记日志）。 */
-function backupUserData(userDataDir: string, target: number): boolean {
+/** 迁移前把关键记录备份到 userData/backup/pre-v<target>/。best-effort，失败不阻断。导出以便测试。 */
+export function backupUserData(userDataDir: string, target: number): boolean {
   try {
     const dest = join(userDataDir, 'backup', `pre-v${target}`)
     mkdirSync(dest, { recursive: true })
