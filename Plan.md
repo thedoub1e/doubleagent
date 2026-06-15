@@ -101,7 +101,7 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 - 抽取=每轮 assistant onDone → extractProfile 取最近4条+现有facts → **信号门控**(无新信息模型返[]→不写)。无固定轮数门槛(语义判断)，明确事实一轮即沉淀、闲聊不沉淀。
 - 结构=5类(identity/preference/concern/commitment/trait)×ADD/UPDATE(矛盾覆盖)/DELETE，上限60(MAX_FACTS,淘汰最旧非constant)。可挂更便宜记忆模型(config.memoryModel)。
 - UI=设置面板「小狗眼中的你」**逐条可编辑(input change→profile.update)+单条删(×→remove)+清空(已两步确认 confirmable 防误触)**。✓误触防护已做 ✓可编辑非只能清空。
-- 待打磨：编辑「可改」不够明显(看着像普通文字)；停顿/空闲 debounce 抽取(省key,优化,未做)。
+- 待打磨：编辑「可改」不够明显(看着像普通文字，**仍待做**)；~~停顿/空闲 debounce 抽取~~ ✅ 已完成 2026-06-15(8s 停顿后抽一次)。
 
 **上下文管理(防降智) 现状**：runChat 只发**最近30条**(MAX_CONTEXT_MESSAGES)给模型,非全量;超24条(SUMMARIZE_THRESHOLD)把更旧的滚动压缩进摘要(memory.json)注入人设=我们的"压缩"。注入=人设+摘要(叙事)+画像(事实)+当前时间。降智/token已架构兜住。
 
@@ -166,7 +166,7 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ### 待办队列（新会话按此推进，2026-06-15）
 0. ~~**[待用户操作]** Google Places 位置推荐~~ ❌ **已撤除(用户 2026-06-15 拍板不搞了)**：find_nearby 工具 + Maps 密钥(config/UI/preload/env)整套干净移除，placesTool.ts/test 删除；「不知道吃什么/做饭」建议保留(无需 key，小狗结合口味聊+web_search 查菜谱/本地推荐)。详见 §「待议·Google Maps」已划掉。
-A. **[基础设施/打磨 · 用户选定可自排做]** ① ~~MCP 接入(Phase 4)~~ ⏸️ **暂缓·标 backlog(用户 2026-06-15 拍板「先不做」)**：YAGNI——目前没有具体想接的 MCP server，伴侣(电脑小白)也不会自己配 server，没有预配好的 server 就用不上。将来真有要接的 server(如 Notion/音乐/某数据源)再做；做时务必把外部 server 的写/执行工具接进现有「危险确认+沙箱」护栏。 ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
+A. **[基础设施/打磨 · 用户选定可自排做]** ① ~~MCP 接入(Phase 4)~~ ⏸️ **暂缓·标 backlog(用户 2026-06-15 拍板「先不做」)**：YAGNI——目前没有具体想接的 MCP server，伴侣(电脑小白)也不会自己配 server，没有预配好的 server 就用不上。将来真有要接的 server(如 Notion/音乐/某数据源)再做；做时务必把外部 server 的写/执行工具接进现有「危险确认+沙箱」护栏。 ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:✅ README 功能补全 + ✅ 登录项自启动已实现；仍待真机=README 截图 / 伴侣国外实测 api.minimax 可达。
 A2. ~~**[自更新·热升级]**~~ ✅ **已实现(2026-06-15,用户「全都修好」)**：纯函数 `updateUtil.ts`(parseSha/parseBehindCount/parseBranch/isUpdateAvailable/needsNpmInstall/isWorkingTreeClean/describeUpdate/friendlyUpdateError)+ IO `updater.ts`(checkForUpdate 只读 fetch+比对;applyUpdate=记旧SHA→校验工作区干净→`git pull --ff-only`→按需 npm install→build,失败 `git reset --hard` 回滚旧版重建)+迁移框架 `migrate.ts`(`dataVersion`+`pendingMigrations` 纯函数+runDataMigrations 迁移前备份 userData 到 backup/pre-v*)+config.dataVersion/autoCheckUpdate+IPC update:check/apply(成功 app.relaunch+exit)+启动迁移&12s 后自动检查提示+设置面板「检查更新」按钮/进度/自动检查开关+README clone-only+更新FAQ。+25 测(updateUtil19+migrate6),245 离线全过+build+E2E16。**git 命令只读冒烟实跑通过**(show-toplevel/branch/fetch/rev-list/porcelain 都对,脏工作区守卫验证生效)。**剩真机验收**:造一个落后 commit→检查→更新→重启进新版+记录在(同登录周期属真机项)。
 
 B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
@@ -176,9 +176,9 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
    - **自动化验收(我先跑)**:typecheck ✓ · vitest 162 过(纯函数 sessionsUtil16+scenario6+profileUtil11 · **fs 集成 10**=mock electron 真读写 sessions.json 持久化/重启/隔离/迁移/删空补建 · 其余)✓ · **Playwright-Electron E2E 13 过**(真启 App 真点侧栏:建/切/改名/删/两步确认/删空补建/窗口720/设置番茄面板互斥 D3)✓ · build ✓。`npm run test:e2e` 可复跑(隔离 userData 不碰真实数据)。
    - **剩人工走查(仅 LLM 行为,自动测不到)**:① C 组靠谱护栏观感(说关键事实→顺口确认/纠正→覆盖/闲聊不记)② 普通发消息流式回复+图片vision③ 主动消息(提醒/简报)落当前会话观感。代码层已绿,人工是确认手感。
    详见 §「多会话 + 全局画像 架构方案」。
-3. **[画像 UX 打磨]** 让"可编辑"更明显(如 hover 出编辑态/铅笔图标/分类可改)；保留两步确认清空。
-4. **[抽取节奏优化]** 空闲/停顿 debounce 抽取(LangMem debounce + Letta sleep-time,复用待机循环)，省 key 不卡回复。
-5. **[收尾]** README 截图 / 伴侣国外实测 api.minimaxi.com 可达 / 对方视角从0安装演练 / `set_briefing`(简报时间08:30·22:00 可对话改,曾提议未做)。
+3. **[画像 UX 打磨 · 仍待做]** 让"可编辑"更明显(如 hover 出编辑态/铅笔图标/分类可改)；保留两步确认清空。
+4. ~~**[抽取节奏优化]**~~ ✅ 已完成 2026-06-15：抽取 debounce（8s 停顿后抽一次省 key + before-quit flush 补抽）。
+5. **[收尾]** ✅ README 功能介绍补全 + ✅ `set_briefing` 已实现 + ✅ 登录项自启动已实现；**仍待真机**：README 截图 / 伴侣国外实测 api.minimaxi.com 可达 / 对方视角从0安装演练。
 
 ### 已完成大块（勿重复做）
 对话转待办+核销/晨晚简报/持久化补发/行程前置/倒数日/天气(IP自动定位+手填)/解锁问候/久坐/主动找话题pulse/情绪标签gif桶/番茄钟(即时+计划+对话启停+头顶倒计时+跨天统计周统计)/桌面头顶气泡/结构化画像(抽取+注入+可编辑面板)/记忆模型下拉/配置即对话(set_location·set_supervision·set_daily_reminder·schedule_focus等对话工具,无感行动)/agent多轮工具循环+读取工具/图片vision+模型能力管理/Apple HIG 聊天窗(主页干净·番茄钟⚙各子页·可拖拽放大500x740)/多会话(左侧栏·历史&摘要按会话隔离·画像全局共享·旧单流无损迁移)+记忆靠谱护栏(低置信不注入·保守抽取·口头纠正/面板手改=权威·顺口确认)。
@@ -511,7 +511,7 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 - [~] 模型层：集成 `@earendil-works/pi-ai`（主进程跑，key 不进渲染层）；MiniMax 已接，余源待补预设
 - [x] 对话记忆：本地全量历史持久化 + 滚动摘要式长期记忆(memory.json,超24条把旧的压缩进摘要注入人设,保留最近10条原文;清空对话同时清记忆)
 - [x] 主动消息「看得见」——桌面头顶气泡（用户 2026-06-13 提）：pushProactive 除系统通知/写聊天窗外，新增 `pet:say` 推给桌宠窗 → dog.say() 在小狗头顶冒白卡气泡(向下小尾巴/4行截断/textContent防XSS)，8s 自动淡出，点气泡=开聊天(triggerChat 先 hideBubble)。PET_HEIGHT 300→380 留头顶空间(狗底部对齐位置不变)。覆盖全部主动触发(简报/提醒/久坐/解锁/找话题/番茄钟完成)。系统通知保留作后台兜底
-- [ ] set_briefing 对话工具(简报时间/开关可对话改)—— 已向用户提议，待定（当前简报固定 08:30/22:00）
+- [x] set_briefing 对话工具(简报时间/开关可对话改)—— ✅ 已实现 2026-06-15（复用 normalizeTime 校验，落 morning/eveningBriefing；+briefingTool.test 7 测；todayHint/scenario.live 镜像同步）
 - [x] 主动监督：轻量调度器(每30s查) + macOS 系统通知(Notification) + 可配置提醒/打卡(默认学习21:00/早睡23:30) + 触发时小狗蹦跳+主动说话进聊天；设置面板可开关/改时间文案
 - [x] 陪伴人设：默认「留学伴侣陪伴小狗」system prompt（已写进 config 默认，设置可改）
 - [x] 设置面板：模型源下拉(6源:MiniMax国内/国际·DeepSeek·GLM国内/国际·Kimi国内/国际·通义·Gemini反代) + 模型下拉(随源刷新) + 自定义源的baseURL + key 表单(存主进程,不回传明文)。native走pi provider,通义/Gemini反代走自建OpenAI兼容Model
@@ -524,12 +524,11 @@ aigei.com、简书网盘、Sigstick 等）仅个人非商用可用。落地：
 
 ## In Progress / 下一步候选
 - [x] 精灵图(sprite sheet)动画支持：sprite.ts(rAF 分帧,行=状态/列=帧,按情绪切行);设置面板可选。**注：用户改用动图集，精灵图保留但非默认。**
-- [ ] 动图集形象（用户 2026-06-12 改主意，放弃精灵图）：用户在 `gif图/` 放了 10 个 `小白_<行为>.webp` 线条小狗动图，要「尽可能都用上」。
-  方案：启动扫 gif图/，按文件名关键词归类(待机/思考/回复/提醒)，按情绪随机播放+待机轮换。形象优先级 精灵图>单图>**动图集**>自绘狗。动图随仓库分发(private)。
+- [x] 动图集形象（用户 2026-06-12 改主意，放弃精灵图）：✅ 已实现——petAssets.ts `loadGifPools` 扫 `gif图/`(从源码 cwd 优先，回退 app 路径)，按文件名关键词把 10 个 `小白_<行为>.webp` 全归进 idle/thinking/reply/attention 四桶(打招呼/拍手/爱心/耳朵→reply，左右跳/拉拉队→attention，老师/敲电脑→thinking，走路哼歌/无聊→idle)；index.ts resolveVisual `hasAnyGif`→下发 gifset；优先级 精灵图>单图>**动图集**>自绘狗。**默认启用**，10 个全用上。
 - [x] 长期记忆：滚动摘要式（memory.json，超24条压缩旧对话进摘要注入人设）
 - [x] 单元测试：vitest，markdown(10)/providers(4)/scheduleUtil(4) 共 18 测全过
 - [ ] README 截图 + 伴侣在国外实测一次（确认 api.minimaxi.com 境外可达）—— 待真机
-- [~] 登录项自启动：**暂不做**。从源码 npm start 运行下 setLoginItemSettings 指向 Electron 可执行档而非 npm 启动，跑不起来；正解是 LaunchAgent 调 npm start，但 node PATH 对小白脆弱易坏。双击 启动小狗.command 更稳。
+- [x] 登录项自启动：✅ 已实现 2026-06-15（推翻"暂不做"）。从源码运行下 setLoginItemSettings 用 `path=process.execPath + args=[app.getAppPath()]` 指向「electron + 本应用路径」即可登录拉起；设置面板可勾选；启动仅在 autoLaunch=true 才同步(避免 Operation not permitted 噪音)。**剩真机 logout/login 周期验证拉起是否成功**。
 
 ## Done
 - [x] 调研可二开/参考的开源桌宠项目（Open-LLM-VTuber 等 + 用户指定的 Clarvis）
