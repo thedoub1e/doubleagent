@@ -137,7 +137,7 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ### 待办队列（新会话按此推进，2026-06-15）
 0. **[待用户操作]** Google Places 位置推荐已做好(`find_nearby` 工具+设置里 Maps 密钥框)，**待用户拿一个免费 Google Maps key(启用 Places API New)填进设置或 .env GOOGLE_MAPS_API_KEY** 才能 live 验。做饭建议已可用(无需 key)。
-A. **[基础设施/打磨 · 用户选定可自排做]** ① MCP 接入(Phase 4,中等工程,解锁挂任意 MCP server) ② 小优化:`set_briefing`(简报时间对话改)/画像注入预算(top-N,renderProfile 加优先级,画像长大不散注意力,纯函数+测)/抽取 debounce(空闲时抽省 key) ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
+A. **[基础设施/打磨 · 用户选定可自排做]** ① MCP 接入(Phase 4,中等工程,解锁挂任意 MCP server) ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
 B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
 1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。
 2. **[会话管理·✅ 已实现+自动化验收 2026-06-14]** 多会话 + 全局共享画像 + 靠谱护栏**全部落地并自动测过**。

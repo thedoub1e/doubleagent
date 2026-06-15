@@ -60,6 +60,8 @@ export interface AppConfig {
   focusPlans: FocusPlan[]
   // Google Maps/Places API key（位置推荐 find_nearby 用；由赠予者一次性填，留空=不启用附近推荐）。
   mapsApiKey: string
+  // 开机自动启动小狗（常驻桌面陪伴）。由赠予者一次性在设置里打开；默认关，不打扰开发机。
+  autoLaunch: boolean
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -83,7 +85,8 @@ const DEFAULTS: AppConfig = {
   weatherCity: '',
   memoryModel: '',
   focusPlans: [],
-  mapsApiKey: ''
+  mapsApiKey: '',
+  autoLaunch: false
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
@@ -101,6 +104,7 @@ export interface PublicConfig {
   weatherCity: string
   memoryModel: string
   hasMapsKey: boolean
+  autoLaunch: boolean
 }
 
 function configPath(): string {
@@ -157,6 +161,7 @@ export function publicConfig(): PublicConfig {
       : undefined,
     weatherCity: c.weatherCity,
     memoryModel: c.memoryModel,
-    hasMapsKey: (c.mapsApiKey ?? '').length > 0
+    hasMapsKey: (c.mapsApiKey ?? '').length > 0,
+    autoLaunch: c.autoLaunch ?? false
   }
 }

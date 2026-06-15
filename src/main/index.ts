@@ -649,6 +649,7 @@ ipcMain.on('open-external', (_e, url: string) => {
 ipcMain.handle('config:get', () => publicConfig())
 ipcMain.handle('config:set', (_e, patch: Record<string, unknown>) => {
   saveConfig(patch)
+  if ('autoLaunch' in patch) applyLoginItem(Boolean(patch.autoLaunch)) // 改了自启动开关→即时生效
   return publicConfig()
 })
 ipcMain.handle('chat:history', () => loadHistory())
@@ -884,7 +885,19 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
   )
 })
 
+// 开机自启动：macOS/Windows 用系统登录项；非打包(dev)下不动系统设置，避免把 dev electron 注册进登录项。
+function applyLoginItem(enabled: boolean): void {
+  if (process.platform !== 'darwin' && process.platform !== 'win32') return
+  if (!app.isPackaged) return // dev 跑的是 electron 本体，不该写进开机启动
+  try {
+    app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false })
+  } catch {
+    // 设置登录项失败（权限/平台差异）静默降级：不影响主流程
+  }
+}
+
 app.whenReady().then(() => {
+  applyLoginItem(loadConfig().autoLaunch) // 启动时把系统登录项同步到配置
   createPetWindow()
   createChatWindow()
   startScheduler((item) => void fireScheduled(item))

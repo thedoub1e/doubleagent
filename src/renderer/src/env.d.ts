@@ -14,6 +14,7 @@ interface PublicConfigView {
   weatherCity: string
   memoryModel: string
   hasMapsKey: boolean
+  autoLaunch: boolean
 }
 
 interface GifPoolsView {
