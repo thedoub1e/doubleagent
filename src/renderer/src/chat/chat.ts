@@ -83,6 +83,18 @@ root.innerHTML = `
         </label>
         <button class="btn-primary" id="btn-save">保存模型设置</button>
       </details>
+      <section class="update-box">
+        <div class="update-row">
+          <button class="btn-plain" id="btn-check-update">检查更新</button>
+          <span class="update-status" id="update-status"></span>
+        </div>
+        <button class="btn-primary" id="btn-apply-update" hidden>有新版本，现在更新</button>
+        <label class="field-check">
+          <input id="chk-autocheck" type="checkbox" />
+          <span>启动时帮我看看有没有新版本</span>
+        </label>
+        <p class="update-note">更新只会换掉小狗的程序，<b>你们的聊天记录和我记住你的事都不会丢</b> 🐶</p>
+      </section>
       <button class="btn-plain danger" id="btn-clear">清空对话记录</button>
       <p class="hint" id="settings-hint"></p>
     </section>
@@ -117,6 +129,10 @@ const baseUrlField = el<HTMLLabelElement>('field-baseurl')
 const baseUrlInput = el<HTMLInputElement>('inp-baseurl')
 const keyInput = el<HTMLInputElement>('inp-key')
 const autoLaunchChk = el<HTMLInputElement>('chk-autolaunch')
+const autoCheckChk = el<HTMLInputElement>('chk-autocheck')
+const checkUpdateBtn = el<HTMLButtonElement>('btn-check-update')
+const applyUpdateBtn = el<HTMLButtonElement>('btn-apply-update')
+const updateStatusEl = el<HTMLSpanElement>('update-status')
 const settingsHint = el<HTMLParagraphElement>('settings-hint')
 const attachmentsEl = el<HTMLDivElement>('attachments')
 const attachBtn = el<HTMLButtonElement>('btn-attach')
@@ -499,6 +515,7 @@ async function loadConfig(): Promise<void> {
   applyProvider(providerSel.value, cfg.model, cfg.baseUrl, cfg.memoryModel)
   keyInput.placeholder = cfg.hasApiKey ? '已保存（留空＝不修改）' : '粘贴你的 Key'
   autoLaunchChk.checked = cfg.autoLaunch
+  autoCheckChk.checked = cfg.autoCheckUpdate
   settingsHint.textContent = cfg.hasApiKey ? '' : '首次使用：先填 API Key 才能聊天。'
   void refreshVision()
   void loadProfileFacts()
@@ -669,6 +686,54 @@ el<HTMLButtonElement>('btn-new-session').addEventListener('click', () => void ne
 // 模型在首轮后异步生成总结式标题 → 刷新列表显示。
 window.api.session.onUpdated(() => void refreshSessions())
 el<HTMLButtonElement>('btn-save').addEventListener('click', saveConfig)
+
+// —— 自更新（热升级）——
+autoCheckChk.addEventListener('change', () => {
+  void window.api.config.set({ autoCheckUpdate: autoCheckChk.checked })
+})
+window.api.update.onProgress((msg) => {
+  updateStatusEl.textContent = msg
+})
+checkUpdateBtn.addEventListener('click', async () => {
+  checkUpdateBtn.disabled = true
+  updateStatusEl.textContent = '正在看看有没有新版本…'
+  applyUpdateBtn.hidden = true
+  try {
+    const s = await window.api.update.check()
+    if (!s.ok) {
+      updateStatusEl.textContent = s.error ?? '检查更新失败了'
+    } else if (s.available) {
+      updateStatusEl.textContent = s.message
+      applyUpdateBtn.hidden = false
+    } else {
+      updateStatusEl.textContent = '已经是最新版啦～🐶'
+    }
+  } finally {
+    checkUpdateBtn.disabled = false
+  }
+})
+applyUpdateBtn.addEventListener('click', async () => {
+  applyUpdateBtn.disabled = true
+  checkUpdateBtn.disabled = true
+  updateStatusEl.textContent = '开始更新啦，先别关我哦…'
+  try {
+    const r = await window.api.update.apply()
+    updateStatusEl.textContent = r.message
+    if (r.relaunching) {
+      // 主进程会在重启前留一点时间给这条提示渲染；这里不再做别的。
+      applyUpdateBtn.hidden = true
+    } else {
+      // 失败/回滚：恢复按钮让她可重试。
+      applyUpdateBtn.disabled = false
+      checkUpdateBtn.disabled = false
+      applyUpdateBtn.hidden = true
+    }
+  } catch {
+    updateStatusEl.textContent = '更新出了点问题，等下再试试（你的记录都在）'
+    applyUpdateBtn.disabled = false
+    checkUpdateBtn.disabled = false
+  }
+})
 
 // 两步确认：破坏性操作(清空对话/清空画像)点一下变「确认?」，3 秒内再点才执行，防误触。
 // 用内联确认而非原生 confirm()，避免触发窗口失焦→自动隐藏。

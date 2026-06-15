@@ -60,6 +60,10 @@ export interface AppConfig {
   focusPlans: FocusPlan[]
   // 开机自动启动小狗（常驻桌面陪伴）。由赠予者一次性在设置里打开；默认关，不打扰开发机。
   autoLaunch: boolean
+  // 数据结构版本（跨版本升级时按它做有序迁移，见 migrate.ts）。旧装/新装默认 0，启动迁移归正到 CURRENT。
+  dataVersion: number
+  // 启动后自动检查 GitHub 是否有新版（只检查+提示，绝不静默更新）。默认开。
+  autoCheckUpdate: boolean
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -83,7 +87,9 @@ const DEFAULTS: AppConfig = {
   weatherCity: '',
   memoryModel: '',
   focusPlans: [],
-  autoLaunch: false
+  autoLaunch: false,
+  dataVersion: 0,
+  autoCheckUpdate: true
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
@@ -101,6 +107,7 @@ export interface PublicConfig {
   weatherCity: string
   memoryModel: string
   autoLaunch: boolean
+  autoCheckUpdate: boolean
 }
 
 function configPath(): string {
@@ -152,6 +159,7 @@ export function publicConfig(): PublicConfig {
       : undefined,
     weatherCity: c.weatherCity,
     memoryModel: c.memoryModel,
-    autoLaunch: c.autoLaunch ?? false
+    autoLaunch: c.autoLaunch ?? false,
+    autoCheckUpdate: c.autoCheckUpdate ?? true
   }
 }

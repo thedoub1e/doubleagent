@@ -80,10 +80,10 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ## 📌 现状速览 + 待办队列（2026-06-15 更新，供新会话接手 — 先读这段）
 
-**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**220 过+26 跳过**。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
+**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**245 过+26 跳过**。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
 **人工验收手册**：`验收清单.md`(35 项)。
 
-**🆕 本程(2026-06-15 下午)做完**：① 小优化三连(set_briefing 对话改简报/画像注入预算 top-N `selectInjectableFacts`/抽取 debounce 8s) ② 开机自启动(设置面板勾选,修了「从源码运行 app.isPackaged 恒 false → 自启动永久静默失效」隐患,改 path+args) ③ README 功能介绍补全(agent 实干/生活帮手/陪伴,口语化) ④ **撤除 Google Maps 附近推荐**(用户先做后撤,find_nearby/Maps 密钥整套删,做饭建议保留) ⑤ **MCP 接入暂缓·标 backlog**(用户拍板 YAGNI)。
+**🆕 本程(2026-06-15 下午)做完**：① 小优化三连(set_briefing 对话改简报/画像注入预算 top-N `selectInjectableFacts`/抽取 debounce 8s) ② 开机自启动(设置面板勾选,修了「从源码运行 app.isPackaged 恒 false → 自启动永久静默失效」隐患,改 path+args) ③ README 功能介绍补全(agent 实干/生活帮手/陪伴,口语化) ④ **撤除 Google Maps 附近推荐**(用户先做后撤,find_nearby/Maps 密钥整套删,做饭建议保留) ⑤ **MCP 接入暂缓·标 backlog**(用户拍板 YAGNI) ⑥ **自更新(热升级)实现**(updateUtil/updater/migrate,git clone 式,pull→build→relaunch+失败回滚+dataVersion 迁移+迁移前备份,设置「检查更新」UI,README clone-only;245 测全过)。常规 `npx vitest run`=**245 过+26 跳**。
 **⏳ 仅剩真机/真网收尾(我替不了,待用户)**：README 截图(真机截屏放 docs/screenshots/)、伴侣国外测 api.minimaxi.com 可达、自启动一次 logout/login 验证、提醒事项首次 TCC 授权验收(薄片 v0 唯一剩项)。
 
 **🟢 已完成大块(2026-06-14~15，均测过+提交)**：
@@ -138,7 +138,8 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 **经过**：曾实现 find_nearby(Google Places searchText)+设置里 Maps 密钥框，待用户给 key 验收。**用户 2026-06-15 拍板「不搞谷歌地图接入附近吃的了」→ 整套干净移除**(placesTool.ts/test 删、ALL_TOOL_MODULES 去掉、config.mapsApiKey/publicConfig.hasMapsKey/preload/env.d.ts/renderer Maps 密钥框/GOOGLE_MAPS_API_KEY 回退 全删、todayHint 的 find_nearby 路由删)。
 **保留**：「不知道吃什么/想做饭/想找附近吃的」→ 小狗结合她口味聊家常菜 + web_search 查菜谱或本地推荐(无需 key、无需 Google)。
 
-## 🔄 自更新（热升级）方案（用户 2026-06-15 提 + 拍板路线，设计已定·待实现）
+## 🔄 自更新（热升级）方案（用户 2026-06-15 提 + 拍板路线，✅ 已实现 2026-06-15）
+> 实现见待办 A2 / AOL。下方为原始设计记录，与实现一致。
 
 **需求**：让小狗**自己拉 GitHub 升级**，且**绝不丢她本地已存的记录**（"热升级、不覆盖"）。送电脑小白的礼物，升级不能让她碰命令行。
 
@@ -166,7 +167,7 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 ### 待办队列（新会话按此推进，2026-06-15）
 0. ~~**[待用户操作]** Google Places 位置推荐~~ ❌ **已撤除(用户 2026-06-15 拍板不搞了)**：find_nearby 工具 + Maps 密钥(config/UI/preload/env)整套干净移除，placesTool.ts/test 删除；「不知道吃什么/做饭」建议保留(无需 key，小狗结合口味聊+web_search 查菜谱/本地推荐)。详见 §「待议·Google Maps」已划掉。
 A. **[基础设施/打磨 · 用户选定可自排做]** ① ~~MCP 接入(Phase 4)~~ ⏸️ **暂缓·标 backlog(用户 2026-06-15 拍板「先不做」)**：YAGNI——目前没有具体想接的 MCP server，伴侣(电脑小白)也不会自己配 server，没有预配好的 server 就用不上。将来真有要接的 server(如 Notion/音乐/某数据源)再做；做时务必把外部 server 的写/执行工具接进现有「危险确认+沙箱」护栏。 ② ~~小优化三连~~ ✅ **已完成(2026-06-15)**:`set_briefing`(改早/晚简报时间·开关)+画像注入预算(profileUtil `INJECT_MAX_FACTS=24`+`selectInjectableFacts` 纯函数,超额按 constant>明说>高置信>近期取 topN,constant 永留,renderProfile 加 max 参)+抽取 debounce(8s 停顿后抽一次省 key,before-quit flush 补抽)。+12 测,223 离线全过+build+提交。 ③ 收尾:README 截图/伴侣国外实测 api.minimax 可达/登录项自启动。
-A2. **[自更新·热升级 · 设计已定待实现]** 让小狗自拉 GitHub 升级且不丢记录。**数据安全已天然满足**(代码在仓库/记录在 userData,物理隔离)；缺自动化:检查→征同意→`git pull --ff-only`→install→build→`app.relaunch()`,带 build 失败 `git reset --hard` 回滚 + `dataVersion` 有序迁移 + 迁移前 userData 备份。路线已拍板=**git clone 式**(README 安装改 clone-only,去掉 ZIP)。详见 §「自更新（热升级）方案」。**待用户拍板要不要现在实现**。
+A2. ~~**[自更新·热升级]**~~ ✅ **已实现(2026-06-15,用户「全都修好」)**：纯函数 `updateUtil.ts`(parseSha/parseBehindCount/parseBranch/isUpdateAvailable/needsNpmInstall/isWorkingTreeClean/describeUpdate/friendlyUpdateError)+ IO `updater.ts`(checkForUpdate 只读 fetch+比对;applyUpdate=记旧SHA→校验工作区干净→`git pull --ff-only`→按需 npm install→build,失败 `git reset --hard` 回滚旧版重建)+迁移框架 `migrate.ts`(`dataVersion`+`pendingMigrations` 纯函数+runDataMigrations 迁移前备份 userData 到 backup/pre-v*)+config.dataVersion/autoCheckUpdate+IPC update:check/apply(成功 app.relaunch+exit)+启动迁移&12s 后自动检查提示+设置面板「检查更新」按钮/进度/自动检查开关+README clone-only+更新FAQ。+25 测(updateUtil19+migrate6),245 离线全过+build+E2E16。**git 命令只读冒烟实跑通过**(show-toplevel/branch/fetch/rev-list/porcelain 都对,脏工作区守卫验证生效)。**剩真机验收**:造一个落后 commit→检查→更新→重启进新版+记录在(同登录周期属真机项)。
 
 B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面 §「能力引擎升级方案」里的 Phase 标记为历史记录。
 1. **[真机集中验收]** 大量新功能未集中真机走查：计划番茄钟自动开/agent多轮循环/读取工具(查待办·天气)/图片vision/Apple UI/番茄统计跨天刷新+周统计/**多会话(左侧栏建切改删)+全局画像+总结式标题+主动消息只走气泡不进对话框**。按"一天剧情"清单走一遍。

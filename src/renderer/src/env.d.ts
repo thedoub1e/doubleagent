@@ -14,6 +14,22 @@ interface PublicConfigView {
   weatherCity: string
   memoryModel: string
   autoLaunch: boolean
+  autoCheckUpdate: boolean
+}
+
+interface UpdateStatusView {
+  ok: boolean
+  available: boolean
+  behind: number
+  message: string
+  error?: string
+}
+
+interface ApplyUpdateView {
+  ok: boolean
+  relaunching: boolean
+  rolledBack: boolean
+  message: string
 }
 
 interface GifPoolsView {
@@ -62,6 +78,11 @@ interface DoubleAgentApi {
   config: {
     get: () => Promise<PublicConfigView>
     set: (patch: Record<string, unknown>) => Promise<PublicConfigView>
+  }
+  update: {
+    check: () => Promise<UpdateStatusView>
+    apply: () => Promise<ApplyUpdateView>
+    onProgress: (cb: (msg: string) => void) => void
   }
   session: {
     list: () => Promise<SessionsView>

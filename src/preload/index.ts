@@ -66,6 +66,15 @@ const api = {
       ipcRenderer.invoke('config:set', patch)
   },
 
+  // —— 自更新（热升级） ——
+  update: {
+    check: (): Promise<UpdateStatusView> => ipcRenderer.invoke('update:check'),
+    apply: (): Promise<ApplyUpdateView> => ipcRenderer.invoke('update:apply'),
+    onProgress: (cb: (msg: string) => void): void => {
+      ipcRenderer.on('update:progress', (_e, msg: string) => cb(msg))
+    }
+  },
+
   // —— 番茄钟陪学 + 打卡 streak ——
   pomodoro: {
     start: (minutes: number): Promise<number> => ipcRenderer.invoke('pomodoro:start', minutes),
@@ -190,6 +199,22 @@ export interface PublicConfigView {
   weatherCity: string
   memoryModel: string
   autoLaunch: boolean
+  autoCheckUpdate: boolean
+}
+
+export interface UpdateStatusView {
+  ok: boolean
+  available: boolean
+  behind: number
+  message: string
+  error?: string
+}
+
+export interface ApplyUpdateView {
+  ok: boolean
+  relaunching: boolean
+  rolledBack: boolean
+  message: string
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -19,6 +19,8 @@ import {
 } from './chat'
 import { createRegistry } from './tools/registry'
 import { ALL_TOOL_MODULES } from './tools/index'
+import { applyUpdate, checkForUpdate } from './updater'
+import { runDataMigrations } from './migrate'
 import { defaultRoots } from './tools/safety'
 import { auditLog } from './auditLog'
 import type { ConfirmAction, ToolContext } from './tools/types'
@@ -651,6 +653,22 @@ ipcMain.handle('config:set', (_e, patch: Record<string, unknown>) => {
   if ('autoLaunch' in patch) applyLoginItem(Boolean(patch.autoLaunch)) // 改了自启动开关→即时生效
   return publicConfig()
 })
+
+// ---- 自更新（热升级）IPC ----
+// 检查：只读，返回是否有新版 + 友好文案。
+ipcMain.handle('update:check', () => checkForUpdate())
+// 应用：拉取→重建→（成功则）重启；失败自动回滚旧版。进度经 update:progress 推给设置面板。
+ipcMain.handle('update:apply', async () => {
+  const result = await applyUpdate((msg) => chatWindow?.webContents.send('update:progress', msg))
+  if (result.relaunching) {
+    // 让渲染层先收到结果展示「重启中」，再重启进新代码（用户记录在 userData，重启不丢）。
+    setTimeout(() => {
+      app.relaunch()
+      app.exit(0)
+    }, 800)
+  }
+  return result
+})
 ipcMain.handle('chat:history', () => loadHistory())
 // 「清空对话记录」只清当前会话的历史+滚动摘要；画像(对你的了解)由独立按钮清，绝不在此连带清掉。
 ipcMain.on('chat:clear', () => {
@@ -906,8 +924,26 @@ function applyLoginItem(enabled: boolean): void {
   }
 }
 
+// 启动后自动检查更新（只检查+提示，绝不静默更新）。延迟避开启动高峰；只在仍未更新时提示一次。
+const UPDATE_CHECK_DELAY_MS = 12_000
+function scheduleUpdateCheck(): void {
+  if (!loadConfig().autoCheckUpdate) return
+  setTimeout(() => {
+    void checkForUpdate().then((s) => {
+      if (s.ok && s.available) pushProactive('我发现有新版本啦～想更新我的话，打开聊天窗 ⚙ 设置点一下「检查更新」就好，记录都不会丢的 🐶')
+    })
+  }, UPDATE_CHECK_DELAY_MS)
+}
+
 app.whenReady().then(() => {
-  applyLoginItem(loadConfig().autoLaunch) // 启动时把系统登录项同步到配置
+  // 数据迁移要在开窗口、读记录之前跑：把 userData 记录按 dataVersion 升到当前结构（迁移前已自动备份）。
+  try {
+    runDataMigrations()
+  } catch {
+    // 迁移失败不阻断启动（已有 backup 兜底）；旧结构读取层多有容错。
+  }
+  // 启动时仅在「开了自启动」才去同步系统登录项；关闭态不必每次触碰系统设置（避免无谓的权限报错噪音）。
+  if (loadConfig().autoLaunch) applyLoginItem(true)
   createPetWindow()
   createChatWindow()
   startScheduler((item) => void fireScheduled(item))
@@ -915,6 +951,7 @@ app.whenReady().then(() => {
   startPresenceWatcher()
   startPulseWatcher()
   startFocusPlanWatcher()
+  scheduleUpdateCheck()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createPetWindow()
