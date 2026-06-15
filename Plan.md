@@ -80,7 +80,7 @@ memory/summarize/skill-creator/clawhub(技能市场)。
 
 ## 📌 现状速览 + 待办队列（2026-06-15 更新，供新会话接手 — 先读这段）
 
-**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**245 过+26 跳过**。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
+**dev 在跑**：`nohup npm run dev`（单实例）。常规 `npx vitest run`=**250 过+26 跳过**。`npm run test:e2e`=**23 过**（含自更新/自启动设置 UI 真驱动）。`npm run typecheck` 现覆盖 `src`+`test`（tsconfig.typecheck.json）。联网真模型测试(gated `SCENARIO_LIVE=1`)：`test/scenario.live.test.ts`(工具选择+情绪+多轮) 与 **`test/capability.live.test.ts`(8 全量能力:真模型+真工具+真沙箱,断真实文件效果+安全+不编造,密钥零泄露)**。E2E：`npm run test:e2e`(16,含安全确认卡片)。.env 有 MINIMAX key。关 dev：`pkill -f "doubleagent/node_modules/electron"`。
 **人工验收手册**：`验收清单.md`(A~F 共 40 项；F 节=本程新增 set_briefing/自启动/自更新)。
 
 **🆕 本程(2026-06-15 下午)做完**：① 小优化三连(set_briefing 对话改简报/画像注入预算 top-N `selectInjectableFacts`/抽取 debounce 8s) ② 开机自启动(设置面板勾选,修了「从源码运行 app.isPackaged 恒 false → 自启动永久静默失效」隐患,改 path+args) ③ README 功能介绍补全(agent 实干/生活帮手/陪伴,口语化) ④ **撤除 Google Maps 附近推荐**(用户先做后撤,find_nearby/Maps 密钥整套删,做饭建议保留) ⑤ **MCP 接入暂缓·标 backlog**(用户拍板 YAGNI) ⑥ **自更新(热升级)实现**(updateUtil/updater/migrate,git clone 式,pull→build→relaunch+失败回滚+dataVersion 迁移+迁移前备份,设置「检查更新」UI,README clone-only;245 测全过)。常规 `npx vitest run`=**245 过+26 跳**。
