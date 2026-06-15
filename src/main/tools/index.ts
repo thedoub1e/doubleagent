@@ -3,9 +3,14 @@
 import { toToolDef } from './registry'
 import { PET_TOOL_MODULES } from './petTools'
 import { COMPUTER_TOOL_MODULES } from './computerTools'
+import { findNearbyTool } from './placesTool'
 import type { ToolModule } from './types'
 
-export const ALL_TOOL_MODULES: ToolModule[] = [...PET_TOOL_MODULES, ...COMPUTER_TOOL_MODULES]
+export const ALL_TOOL_MODULES: ToolModule[] = [
+  ...PET_TOOL_MODULES,
+  ...COMPUTER_TOOL_MODULES,
+  findNearbyTool
+]
 
 /** 对模型暴露的全部工具定义。 */
 export const ALL_TOOLS = ALL_TOOL_MODULES.map(toToolDef)

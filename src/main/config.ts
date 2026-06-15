@@ -58,6 +58,8 @@ export interface AppConfig {
   memoryModel: string
   // 计划式番茄钟/学习计划：到点自动进入专注（对话设定，如「每天9点专注2小时」）。
   focusPlans: FocusPlan[]
+  // Google Maps/Places API key（位置推荐 find_nearby 用；由赠予者一次性填，留空=不启用附近推荐）。
+  mapsApiKey: string
 }
 
 const DEFAULT_REMINDERS: Reminder[] = [
@@ -80,7 +82,8 @@ const DEFAULTS: AppConfig = {
   anniversaries: [],
   weatherCity: '',
   memoryModel: '',
-  focusPlans: []
+  focusPlans: [],
+  mapsApiKey: ''
 }
 
 /** 渲染层可见的安全视图：不含 apiKey 明文，只给「是否已设置」。 */
@@ -97,6 +100,7 @@ export interface PublicConfig {
   spriteSheet?: { rows: number; cols: number; fps: number }
   weatherCity: string
   memoryModel: string
+  hasMapsKey: boolean
 }
 
 function configPath(): string {
@@ -119,6 +123,11 @@ export function loadConfig(): AppConfig {
   const envKey = process.env.MINIMAX_API_KEY ?? ''
   if (result.provider.startsWith('minimax') && result.apiKey.length === 0 && envKey.length > 0) {
     result = { ...result, apiKey: envKey }
+  }
+  // 同理：Maps key 没在 UI 填时，回退项目 .env 的 GOOGLE_MAPS_API_KEY。
+  const envMaps = process.env.GOOGLE_MAPS_API_KEY ?? ''
+  if ((result.mapsApiKey ?? '').length === 0 && envMaps.length > 0) {
+    result = { ...result, mapsApiKey: envMaps }
   }
   cache = result
   return result
@@ -147,6 +156,7 @@ export function publicConfig(): PublicConfig {
       ? { rows: c.spriteSheet.rows, cols: c.spriteSheet.cols, fps: c.spriteSheet.fps }
       : undefined,
     weatherCity: c.weatherCity,
-    memoryModel: c.memoryModel
+    memoryModel: c.memoryModel,
+    hasMapsKey: (c.mapsApiKey ?? '').length > 0
   }
 }
