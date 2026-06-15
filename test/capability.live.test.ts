@@ -1,7 +1,7 @@
 // 全量能力测试（真实模型 + 真实工具执行 + 真实沙箱文件系统）。
 // 与 scenario.live 不同：这里 onToolCalls 用真 registry.dispatch 真跑工具，断言真实文件效果 + 回答 + 安全行为。
 // 默认跳过；显式跑：SCENARIO_LIVE=1 npx vitest run test/capability.live.test.ts
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -46,7 +46,10 @@ function baseConfig(): import('../src/main/config').AppConfig {
     anniversaries: [],
     weatherCity: '',
     memoryModel: '',
-    focusPlans: []
+    focusPlans: [],
+    autoLaunch: false,
+    dataVersion: 0,
+    autoCheckUpdate: false
   }
 }
 
@@ -124,7 +127,7 @@ describe.skipIf(!LIVE)('全量能力测试 · 真模型 + 真工具 + 真沙箱'
 
   it('写文件：文件真的被创建且内容正确（确认通过）', async () => {
     const p = join(dir, 'hello.txt')
-    const r = await ask(`在文件夹 ${dir} 里新建一个 hello.txt，内容写「你好世界」`)
+    await ask(`在文件夹 ${dir} 里新建一个 hello.txt，内容写「你好世界」`)
     expect(confirmCalls.length).toBeGreaterThan(0) // 危险操作弹过确认（不论用哪个工具）
     expect(existsSync(p)).toBe(true) // 文件真存在
     expect(readFileSync(p, 'utf-8')).toContain('你好世界') // 内容正确

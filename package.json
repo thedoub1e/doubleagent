@@ -10,7 +10,7 @@
     "dev": "electron-vite dev",
     "start": "electron-vite build && electron-vite preview",
     "build": "electron-vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "vitest run",
     "test:e2e": "electron-vite build && node test/e2e/sessions.e2e.mjs"
   },

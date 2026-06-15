@@ -65,7 +65,10 @@ function baseConfig(): AppConfig {
     anniversaries: [],
     weatherCity: '',
     memoryModel: '',
-    focusPlans: []
+    focusPlans: [],
+    autoLaunch: false,
+    dataVersion: 0,
+    autoCheckUpdate: false
   }
 }
 

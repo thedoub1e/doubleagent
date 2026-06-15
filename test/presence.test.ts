@@ -7,8 +7,7 @@ import {
   pickGreeting,
   RETURN_IDLE_SEC,
   SEDENTARY_MINUTES,
-  shouldGreet,
-  type PresenceState
+  shouldGreet
 } from '../src/main/presence'
 
 const MIN = 60_000
