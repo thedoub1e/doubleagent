@@ -245,9 +245,7 @@ function toggleChat(): void {
   // 点小狗时它先抢焦点→聊天窗 blur 刚把自己隐藏；若紧接着的这次 toggle 在守护窗口内，
   // 说明这其实是「点小狗想收起」，保持隐藏，不要又弹开。
   if (Date.now() - chatHiddenByBlurAt < BLUR_TOGGLE_GUARD_MS) return
-  positionChatNearPet()
-  chatWindow.show()
-  chatWindow.focus()
+  presentChatWindow()
 }
 
 function scheduleIdle(): void {
@@ -424,12 +422,20 @@ function driveReplyMood(emotion: Emotion | null): void {
   }
 }
 
-function showChat(): void {
-  if (!chatWindow) createChatWindow()
+// 显示聊天窗（统一入口）：每次显示前重申「跟随当前桌面」，避免窗口被某个 Space 认领、
+// 导致 focus 时把用户从当前桌面拽回别的桌面（配合 app accessory 策略，桌宠才不会跨 Space 跳）。
+function presentChatWindow(): void {
   if (!chatWindow) return
+  chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   positionChatNearPet()
   chatWindow.show()
   chatWindow.focus()
+}
+
+function showChat(): void {
+  if (!chatWindow) createChatWindow()
+  if (!chatWindow) return
+  presentChatWindow()
 }
 
 // 主动监督：把一条主动消息推给用户 —— 仅「系统通知 + 头顶气泡」这一环境通道，
@@ -936,6 +942,9 @@ function scheduleUpdateCheck(): void {
 }
 
 app.whenReady().then(() => {
+  // 桌宠定位为「桌面代理(accessory)」：不占 Dock、不拥有某个 Space。
+  // 否则它是普通 app、拥有启动时那个桌面，聊天窗 focus 会激活 app 把用户从当前桌面拽回老家桌面。
+  if (process.platform === 'darwin') app.setActivationPolicy('accessory')
   // 数据迁移要在开窗口、读记录之前跑：把 userData 记录按 dataVersion 升到当前结构（迁移前已自动备份）。
   try {
     runDataMigrations()
