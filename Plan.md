@@ -177,6 +177,7 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
    - **剩人工走查(仅 LLM 行为,自动测不到)**:① C 组靠谱护栏观感(说关键事实→顺口确认/纠正→覆盖/闲聊不记)② 普通发消息流式回复+图片vision③ 主动消息(提醒/简报)落当前会话观感。代码层已绿,人工是确认手感。
    详见 §「多会话 + 全局画像 架构方案」。
 3. **[画像 UX 打磨 · 仍待做]** 让"可编辑"更明显(如 hover 出编辑态/铅笔图标/分类可改)；保留两步确认清空。
+3.5. **[思考流不显示 · 待优化(用户 2026-06-16 报)]** "💭 思考中…"面板**只显示占位、不显示流式思考内容**。诊断:接线全在(`chat.ts` onThinking→`index.ts` `chat:thinking`→renderer `appendThinking`→`.think-detail`)，**缺的是模型没产出思考流**：① openai 兼容源分支 `chat.ts:76` 硬编码 `reasoning: false`→永远无思考；② 用户用的 MiniMax-M3 走 pi-kind(`pi.getModel()`)分支，是否出 `thinking_delta` 取决于 pi-ai 对 MiniMax-M3 的描述符是否开 reasoning + 完成调用是否请求 + MiniMax-M3 流式是否真回 reasoning token。**修法方向**:按模型能力开 reasoning(reasoning 模型才开)，先确认 `thinking_delta` 真有数据再点亮面板；**若模型确实不回思考流，则不该显示"思考中"占位误导**(改成只显示活动状态/或直接不显示思考面板)。需联网真模型验证 thinking_delta 是否有流。
 4. ~~**[抽取节奏优化]**~~ ✅ 已完成 2026-06-15：抽取 debounce（8s 停顿后抽一次省 key + before-quit flush 补抽）。
 5. **[收尾]** ✅ README 功能介绍补全 + ✅ `set_briefing` 已实现 + ✅ 登录项自启动已实现；**仍待真机**：README 截图 / 伴侣国外实测 api.minimaxi.com 可达 / 对方视角从0安装演练。
 
