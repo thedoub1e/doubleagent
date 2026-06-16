@@ -47,6 +47,9 @@ function errToText(err: unknown): string {
 const MAX_CONTEXT_MESSAGES = 30
 // agent 多轮工具循环的安全上限：防止模型无限调工具。
 const MAX_TOOL_ROUNDS = 5
+// reasoning 模型请求的思考档位（pi-ai ThinkingLevel：off/minimal/low/medium/high）。
+// 'low' 兼顾「能看到小狗在想什么」与「别太慢/太贵」——桌宠聊天不需要重思考。
+const REASONING_LEVEL = 'low'
 
 let currentController: AbortController | null = null
 
@@ -155,9 +158,13 @@ export async function runChat(
         messages,
         ...(tools && tools.length > 0 ? { tools } : {})
       }
+      // reasoning 模型（如 MiniMax-M3）：请求思考档位，pi-ai 才会回 thinking_delta（思考流披露给用户）。
+      // 不开就拿不到思考内容（"💭 思考中…" 面板会一直空着）。非 reasoning 模型不传，省得无谓开销。
+      const supportsReasoning = (model as { reasoning?: boolean }).reasoning === true
       const s = pi.stream(model as never, context as never, {
         apiKey: config.apiKey,
-        signal: controller.signal
+        signal: controller.signal,
+        ...(supportsReasoning ? { reasoning: REASONING_LEVEL } : {})
       } as never)
 
       const roundToolCalls: ToolCall[] = []

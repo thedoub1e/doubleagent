@@ -177,7 +177,11 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
    - **剩人工走查(仅 LLM 行为,自动测不到)**:① C 组靠谱护栏观感(说关键事实→顺口确认/纠正→覆盖/闲聊不记)② 普通发消息流式回复+图片vision③ 主动消息(提醒/简报)落当前会话观感。代码层已绿,人工是确认手感。
    详见 §「多会话 + 全局画像 架构方案」。
 3. **[画像 UX 打磨 · 仍待做]** 让"可编辑"更明显(如 hover 出编辑态/铅笔图标/分类可改)；保留两步确认清空。
-3.5. **[思考流不显示 · 待优化(用户 2026-06-16 报)]** "💭 思考中…"面板**只显示占位、不显示流式思考内容**。诊断:接线全在(`chat.ts` onThinking→`index.ts` `chat:thinking`→renderer `appendThinking`→`.think-detail`)，**缺的是模型没产出思考流**：① openai 兼容源分支 `chat.ts:76` 硬编码 `reasoning: false`→永远无思考；② 用户用的 MiniMax-M3 走 pi-kind(`pi.getModel()`)分支，是否出 `thinking_delta` 取决于 pi-ai 对 MiniMax-M3 的描述符是否开 reasoning + 完成调用是否请求 + MiniMax-M3 流式是否真回 reasoning token。**修法方向**:按模型能力开 reasoning(reasoning 模型才开)，先确认 `thinking_delta` 真有数据再点亮面板；**若模型确实不回思考流，则不该显示"思考中"占位误导**(改成只显示活动状态/或直接不显示思考面板)。需联网真模型验证 thinking_delta 是否有流。
+3.5. **[思考流不显示 · 已查清并收尾(用户 2026-06-16 报)]** "💭 思考中…"面板只显示占位、不显示流式思考内容。**根因实测定论**:接线全完整(`chat.ts` onThinking→`index.ts` `chat:thinking`→renderer `appendThinking`→`.think-detail`)，**缺的是模型不产思考流**。
+    - **已做**:① `chat.ts` 按模型能力开 reasoning——`supportsReasoning = model.reasoning===true` 才向 `pi.stream` 传 `reasoning:'low'`(REASONING_LEVEL),非 reasoning 模型不传(省开销);openai 兼容自建 Model 仍 `reasoning:false` 故不受影响。② 新增 gated 诊断测 `test/thinking.diag.test.ts`(SCENARIO_LIVE)。
+    - **实测结论(MiniMax-M3 / minimax-cn / anthropic-messages 端点)**:开 reasoning 后 `thinking_delta` 字符数 **low=0、high=0**(直连 pi.stream 复测,events 仅 text_*,无 thinking_start/delta)。即 **MiniMax 的 /anthropic 兼容端点接受 reasoning 参数但不回思考内容**,属 provider 限制,客户端无法修。pi-ai 对该模型走 budget-based thinking(`thinking:{type:enabled,budget_tokens,display:summarized}`),minimax 实质忽略(回包正常短答,无内部思考膨胀迹象,故无额外成本)。
+    - **UX 已优雅**:renderer 早已处理"无思考流"——首个答案 delta 到达且 `thinkRaw` 空→撤占位(`chat.ts:357`),`finishStreamPanel` 同理(无思考则 remove)。故 MiniMax-M3 表现=「💭思考中…」短暂作 loading 指示→答案流出→占位消失,**不留空思考框误导**。无需再改 UI。
+    - **结论**:修复是正确的通用行为(换到真回思考流的模型如 Claude 即自动点亮面板);MiniMax-M3 看不到思考是其端点不回,非 bug。本项收尾。
 4. ~~**[抽取节奏优化]**~~ ✅ 已完成 2026-06-15：抽取 debounce（8s 停顿后抽一次省 key + before-quit flush 补抽）。
 5. **[收尾]** ✅ README 功能介绍补全 + ✅ `set_briefing` 已实现 + ✅ 登录项自启动已实现；**仍待真机**：README 截图 / 伴侣国外实测 api.minimaxi.com 可达 / 对方视角从0安装演练。
 
