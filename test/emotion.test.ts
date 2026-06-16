@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { emotionToPetState, parseEmotion } from '../src/shared/emotion'
+import { decorateEmotionTags, emotionToPetState, parseEmotion } from '../src/shared/emotion'
 
 describe('parseEmotion', () => {
   test('剥掉开头的已知情绪标签并返回情绪', () => {
@@ -26,6 +26,28 @@ describe('parseEmotion', () => {
 
   test('流式途中标签未闭合 → 暂不剥（不误伤）', () => {
     expect(parseEmotion('[开')).toEqual({ emotion: null, clean: '[开' })
+  })
+})
+
+describe('decorateEmotionTags', () => {
+  test('正文里残留的已知情绪标签转成 emoji', () => {
+    expect(decorateEmotionTags('都给你安排上啦 [爱你] 加油')).toBe('都给你安排上啦 💗 加油')
+    expect(decorateEmotionTags('[开心]太好了[兴奋]')).toBe('😊太好了🎉')
+  })
+
+  test('不吃 Markdown 链接，也不动未知方括号', () => {
+    expect(decorateEmotionTags('[爱你](https://x.com)')).toBe('[爱你](https://x.com)')
+    expect(decorateEmotionTags('[TODO] 待办 [Google](http://g.com)')).toBe('[TODO] 待办 [Google](http://g.com)')
+  })
+
+  test('无情绪标签时原样返回', () => {
+    expect(decorateEmotionTags('就是普通一句话 🐶')).toBe('就是普通一句话 🐶')
+  })
+
+  test('与 parseEmotion 配合：开头标签剥掉、正文标签转 emoji', () => {
+    const { emotion, clean } = parseEmotion('[开心] 我[爱你]哦')
+    expect(emotion).toBe('happy')
+    expect(decorateEmotionTags(clean)).toBe('我💗哦')
   })
 })
 

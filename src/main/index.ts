@@ -71,7 +71,13 @@ import { BRIEFING_EVENING_ID, BRIEFING_MORNING_ID, startScheduler } from './sche
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
 import { existsSync } from 'node:fs'
 import { ASSET_DIR, hasAnyGif, loadGifPools, type PetGifPools } from './petAssets'
-import { EMOTION_INSTRUCTION, emotionToPetState, parseEmotion, type Emotion } from '../shared/emotion'
+import {
+  EMOTION_INSTRUCTION,
+  decorateEmotionTags,
+  emotionToPetState,
+  parseEmotion,
+  type Emotion
+} from '../shared/emotion'
 
 // 启动即读项目 .env（让 MINIMAX_API_KEY 等可写进文件，不必走 UI）。
 loadDotEnv()
@@ -442,8 +448,8 @@ function showChat(): void {
 // 不写进会话历史、不推聊天流（问候/简报/久坐这类不该堆进对话框，避免污染真实对话；
 // 多会话下也不会错落进当前活跃会话）。真正的对话只发生在用户主动开口时。
 function pushProactive(message: string): void {
-  // 主动消息也可能带情绪标签（如 composeOpener 走人设指令）→ 先剥干净再展示。
-  const { clean } = parseEmotion(message)
+  // 主动消息也可能带情绪标签（如 composeOpener 走人设指令）→ 先剥开头标签 + 正文标签转 emoji。
+  const clean = decorateEmotionTags(parseEmotion(message).clean)
   if (clean.length === 0) return
   if (Notification.isSupported()) {
     const n = new Notification({ title: '线条小狗', body: clean })
@@ -885,10 +891,12 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
       onStart: () => send('chat:start'),
       onDelta: (delta) => send('chat:delta', delta),
       onDone: (fullText) => {
-        // 剥掉开头的 [情绪] 标签：历史/展示都存干净文本，形象按情绪命中对应 gif 桶。
+        // 剥掉开头的 [情绪] 标签（驱动形象，不展示）+ 把正文残留情绪标签转 emoji。
+        // 历史/展示都存这份干净文本，形象按情绪命中对应 gif 桶。
         const { emotion, clean } = parseEmotion(fullText)
-        if (clean.length > 0) appendMessage({ role: 'assistant', content: clean })
-        send('chat:done', clean)
+        const display = decorateEmotionTags(clean)
+        if (display.length > 0) appendMessage({ role: 'assistant', content: display })
+        send('chat:done', display)
         driveReplyMood(emotion)
         scheduleIdle()
         void maybeSummarize()

@@ -1,7 +1,7 @@
 import './chat.css'
 import { renderMarkdown } from './markdown'
 import { PROVIDER_PRESETS, findPreset } from '../../../shared/providers'
-import { parseEmotion } from '../../../shared/emotion'
+import { decorateEmotionTags, parseEmotion } from '../../../shared/emotion'
 
 const root = document.getElementById('chat-root')
 if (!root) throw new Error('chat-root not found')
@@ -172,11 +172,54 @@ let activeRaw = ''
 // 思考/活动披露面板（Claude Code 式「思考过程 + 正在做什么」），出现在回答气泡上方。
 let streamPanel: HTMLDivElement | null = null
 let thinkRaw = ''
+// 打字机平滑层：activeRaw 累计已收到的全部原文（可能是大块到达），displayedLen 是当前
+// 已“吐字”到屏幕的字符数。rAF 循环以稳定节奏把 displayedLen 追向目标长度，使呈现像逐字打字，
+// 不受网络分块大小影响（MiniMax 经 anthropic 端点常一次回一大块）。
+let displayedLen = 0
+let typewriterRaf: number | null = null
 
 // 助手气泡走 Markdown 渲染（已在 markdown.ts 内先转义防 XSS）；用户气泡纯文本。
 function setBubbleContent(bubble: HTMLDivElement, role: 'user' | 'assistant', text: string): void {
   if (role === 'assistant') bubble.innerHTML = renderMarkdown(text)
   else bubble.textContent = text
+}
+
+// 流式途中的展示文本：剥掉开头情绪标签（驱动形象，不展示）+ 把正文残留标签转 emoji。
+function streamDisplayText(raw: string): string {
+  return decorateEmotionTags(parseEmotion(raw).clean)
+}
+
+// 开头情绪标签可能还在传输中（如收到 "[开" 尚无 "]"）→ 先别吐字，免得方括号一闪。
+function leadingTagPending(raw: string): boolean {
+  const t = raw.replace(/^\s+/, '')
+  return t.startsWith('[') && !t.includes(']')
+}
+
+function stopTypewriter(): void {
+  if (typewriterRaf !== null) {
+    cancelAnimationFrame(typewriterRaf)
+    typewriterRaf = null
+  }
+}
+
+// 一帧吐若干字；积压越多吐越快（never 落后太远），始终只渲染目标文本的前缀（剥标签会让目标变短→夹紧）。
+function pumpTypewriter(): void {
+  typewriterRaf = null
+  if (!activeBubble) return
+  const target = streamDisplayText(activeRaw)
+  if (displayedLen > target.length) displayedLen = target.length // 开头标签被剥后目标变短→夹紧
+  if (displayedLen < target.length && !leadingTagPending(activeRaw)) {
+    const remaining = target.length - displayedLen
+    const step = Math.max(2, Math.ceil(remaining / 8)) // 平滑且自适应：积压多则加速
+    displayedLen = Math.min(target.length, displayedLen + step)
+    activeBubble.classList.remove('is-typing')
+    setBubbleContent(activeBubble, 'assistant', target.slice(0, displayedLen))
+    msgsEl.scrollTop = msgsEl.scrollHeight
+  }
+  // 还在流、或还有没吐完的积压 → 继续下一帧。
+  if (streaming || displayedLen < target.length) {
+    typewriterRaf = requestAnimationFrame(pumpTypewriter)
+  }
 }
 
 function addMessage(role: 'user' | 'assistant', text: string): HTMLDivElement {
@@ -266,8 +309,10 @@ function send(): void {
   autosize()
   pendingImages = []
   renderThumbs()
+  stopTypewriter()
   activeRaw = ''
   activeBubble = null
+  displayedLen = 0
   thinkRaw = ''
   streamPanel = null
   ensureStreamPanel() // 立刻显示「💭 思考中…」反馈（回答气泡由首个 delta 创建在其下方）
@@ -359,18 +404,18 @@ window.api.chat.onDelta((delta) => {
       streamPanel = null
     }
     activeRaw = ''
+    displayedLen = 0
     activeBubble = addMessage('assistant', '')
   }
-  activeBubble.classList.remove('is-typing')
+  // 只累计原文；具体“吐字”交给 rAF 打字机循环平滑呈现（不受网络分块大小影响）。
   activeRaw += delta
-  // 剥掉开头的 [情绪] 标签后再渲染（流式途中即时剥，避免标签一闪而过）。
-  setBubbleContent(activeBubble, 'assistant', parseEmotion(activeRaw).clean)
-  msgsEl.scrollTop = msgsEl.scrollHeight
+  if (typewriterRaf === null) typewriterRaf = requestAnimationFrame(pumpTypewriter)
 })
 
 window.api.chat.onDone((fullText) => {
   finishStreamPanel() // 收起/移除思考面板
-  const clean = parseEmotion(fullText).clean
+  stopTypewriter() // 停止打字机，下面一次性把全文落定（不留半截）
+  const clean = decorateEmotionTags(parseEmotion(fullText).clean)
   if (activeBubble) {
     activeBubble.classList.remove('is-typing')
     if (clean.length > 0) setBubbleContent(activeBubble, 'assistant', clean)
@@ -379,6 +424,7 @@ window.api.chat.onDone((fullText) => {
     addMessage('assistant', clean)
   }
   activeBubble = null
+  displayedLen = 0
   setStreaming(false)
   inputEl.focus()
   void refreshSessions() // 首条消息可能刚生成会话标题 / 改变排序
@@ -386,7 +432,7 @@ window.api.chat.onDone((fullText) => {
 
 window.api.chat.onProactive((message) => {
   // 小狗主动说话（提醒 / 打卡）：作为一条助手消息出现（主进程已剥情绪标签，这里再保底一次）。
-  addMessage('assistant', parseEmotion(message).clean)
+  addMessage('assistant', decorateEmotionTags(parseEmotion(message).clean))
   void refreshSessions()
 })
 
@@ -437,6 +483,8 @@ window.api.tool.onConfirm((req) => {
 
 window.api.chat.onError((message) => {
   finishStreamPanel() // 清掉思考面板
+  stopTypewriter()
+  displayedLen = 0
   // 防御：万一传来非字符串，也绝不显示 [object Object]。
   const text =
     typeof message === 'string'
@@ -547,7 +595,9 @@ async function renderHistory(): Promise<void> {
   msgsEl.innerHTML = '' // 切换会话时先清空，再渲染目标会话历史
   const history = await window.api.chat.history()
   for (const m of history) {
-    if (m.role === 'user' || m.role === 'assistant') addMessage(m.role, m.content)
+    if (m.role === 'user') addMessage('user', m.content)
+    // 历史助手消息：把可能残留的情绪标签转 emoji（兼容本次改动前存下的旧记录）。
+    else if (m.role === 'assistant') addMessage('assistant', decorateEmotionTags(m.content))
   }
 }
 

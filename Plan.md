@@ -182,6 +182,10 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
     - **实测结论(MiniMax-M3 / minimax-cn / anthropic-messages 端点)**:开 reasoning 后 `thinking_delta` 字符数 **low=0、high=0**(直连 pi.stream 复测,events 仅 text_*,无 thinking_start/delta)。即 **MiniMax 的 /anthropic 兼容端点接受 reasoning 参数但不回思考内容**,属 provider 限制,客户端无法修。pi-ai 对该模型走 budget-based thinking(`thinking:{type:enabled,budget_tokens,display:summarized}`),minimax 实质忽略(回包正常短答,无内部思考膨胀迹象,故无额外成本)。
     - **UX 已优雅**:renderer 早已处理"无思考流"——首个答案 delta 到达且 `thinkRaw` 空→撤占位(`chat.ts:357`),`finishStreamPanel` 同理(无思考则 remove)。故 MiniMax-M3 表现=「💭思考中…」短暂作 loading 指示→答案流出→占位消失,**不留空思考框误导**。无需再改 UI。
     - **结论**:修复是正确的通用行为(换到真回思考流的模型如 Claude 即自动点亮面板);MiniMax-M3 看不到思考是其端点不回,非 bug。本项收尾。
+3.6. **[流式打字感 + emoji 表达 · ✅ 已完成(用户 2026-06-16 报)]** 用户反馈"没看到像 DeepSeek 客户端那样的流式输出"+"可以用 emoji",且截图见正文裸露 `[爱你]` 标签。
+    - **流式打字机**:根因=MiniMax 经 anthropic 端点发大块 delta(实测 59 字仅 3 个 delta)→答案"跳几下"而非逐字。renderer `chat.ts` 加 rAF 打字机平滑层:`activeRaw` 累计原文、`displayedLen` 以稳定节奏(每帧 max(2, 剩余/8) 字,积压多则加速)追向目标,只渲染目标前缀;`leadingTagPending` 防开头 `[情绪]` 标签传输中一闪;onDone/onError/send/abort 均 stopTypewriter+夹紧。呈现像 DeepSeek 逐字打字,不受网络分块影响。
+    - **emoji**:① `emotion.ts` EMOTION_INSTRUCTION 增"欢迎自然用 emoji";② 新增 `decorateEmotionTags`——把正文残留的已知情绪标签(模型违规写句中的 `[爱你]` 等)转 emoji(💗😊🎉…),负向预查 `(` 不吃 Markdown 链接;③ 主进程 onDone/pushProactive 存与发都 decorate、renderer 流式途中+onProactive+renderHistory(retroactive 修旧记录)都 decorate。+4 单测。
+    - 验证:typecheck + 254 离线测 + build 全绿。思考过程对 MiniMax-M3 仍不可得(见 3.5,模型端点不回,非本程可修)。
 4. ~~**[抽取节奏优化]**~~ ✅ 已完成 2026-06-15：抽取 debounce（8s 停顿后抽一次省 key + before-quit flush 补抽）。
 5. **[收尾]** ✅ README 功能介绍补全 + ✅ `set_briefing` 已实现 + ✅ 登录项自启动已实现；**仍待真机**：README 截图 / 伴侣国外实测 api.minimaxi.com 可达 / 对方视角从0安装演练。
 

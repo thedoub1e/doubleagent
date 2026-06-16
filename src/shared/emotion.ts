@@ -29,13 +29,37 @@ const TAG_TO_EMOTION: Record<string, Emotion> = {
   比心: 'love'
 }
 
+/** 情绪 → emoji。用于把模型偶尔写进正文的情绪标签转成 emoji 展示（而非裸露方括号文本）。 */
+const EMOTION_EMOJI: Record<Emotion, string> = {
+  happy: '😊',
+  excited: '🎉',
+  sad: '😢',
+  comfort: '🤗',
+  thinking: '🤔',
+  calm: '😌',
+  love: '💗'
+}
+
 /** 注入人设的情绪标注指令（让模型每次回复以一个情绪标签开头）。 */
 export const EMOTION_INSTRUCTION =
   '\n\n【情绪表达】每次回复请在最开头用一个方括号情绪标签标注你此刻的情绪，' +
   '从这些里选一个：[开心] [兴奋] [难过] [安慰] [思考] [平静] [爱你]，紧接着写正文。' +
-  '例如「[开心] 太好啦！」。标签只放在开头、只出现一次，正文里不要再写方括号情绪标签。'
+  '例如「[开心] 太好啦！」。标签只放在开头、只出现一次。' +
+  '正文里不要再写方括号情绪标签，但欢迎自然地用 emoji（😊🎉🐶💗🤗 等）让语气更生动温暖，别堆砌。'
 
 const LEADING_TAG = /^\s*\[([^\]\n]{1,6})\]\s*/
+
+// 正文里残留的已知情绪标签 → emoji（不吃 Markdown 链接 [text](url)：负向预查 `(`）。
+const BODY_TAG = new RegExp(`\\[(${Object.keys(TAG_TO_EMOTION).join('|')})\\](?!\\()`, 'g')
+
+/**
+ * 把正文中残留的已知情绪标签（如模型违规写在句中的 `[爱你]`）转成对应 emoji。
+ * 只认 TAG_TO_EMOTION 里的已知中文标签；未知方括号与 Markdown 链接一律不动。
+ * 应在 parseEmotion 剥掉开头标签之后、对 clean 文本调用。
+ */
+export function decorateEmotionTags(text: string): string {
+  return text.replace(BODY_TAG, (_m, tag: string) => EMOTION_EMOJI[TAG_TO_EMOTION[tag]])
+}
 
 /**
  * 解析回复开头的情绪标签。命中已知标签 → 返回该情绪并剥掉标签；
