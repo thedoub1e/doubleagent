@@ -890,3 +890,9 @@ void refreshSessions()
 void renderHistory()
 void loadConfig()
 inputEl.focus()
+
+// 聊天窗用 showInactive() 显示（避免激活 app 切桌面，见 main presentChatWindow）→ 不会自动聚焦输入框。
+// 这里在窗口每次变为可见时手动聚焦，保证「点小狗即可直接打字」。
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && settingsEl.hidden) inputEl.focus()
+})

@@ -428,14 +428,19 @@ function driveReplyMood(emotion: Emotion | null): void {
   }
 }
 
-// 显示聊天窗（统一入口）：每次显示前重申「跟随当前桌面」，避免窗口被某个 Space 认领、
-// 导致 focus 时把用户从当前桌面拽回别的桌面（配合 app accessory 策略，桌宠才不会跨 Space 跳）。
+// 显示聊天窗（统一入口）。多桌面要点：窗口创建时即 canJoinAllSpaces，本就显示在当前桌面；
+// 用户点小狗这个物理点击已把 app 在当前桌面「就地激活」(不切 Space)。
+// 关键：绝不能再调 chatWindow.show()/focus()——它们会触发 [NSApp activateIgnoringOtherApps],
+// 二次激活把用户从当前桌面拽回 app 的「归属桌面」(启动时所在桌面)。
+// 改用 showInactive()(不激活 app、不切 Space) + moveTop() 置顶 + webContents.focus()
+// (app 已被点击激活，键盘输入照样进输入框)。
 function presentChatWindow(): void {
   if (!chatWindow) return
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   positionChatNearPet()
-  chatWindow.show()
-  chatWindow.focus()
+  chatWindow.showInactive()
+  chatWindow.moveTop()
+  chatWindow.webContents.focus()
 }
 
 function showChat(): void {
