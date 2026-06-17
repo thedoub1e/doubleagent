@@ -192,6 +192,7 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
 3.8. **[番茄钟口头答应却不调工具 · 缓解(用户 2026-06-16 报)]** 截图见两次「陪我专注1分钟」都只回"开始啦"没调 start_focus(MiniMax-M3 工具触发非确定性)。修:composePersona 末尾加铁律——明确要办的事必须真调工具,绝不只口头答应「已开始/已安排」却没调用。**模型层缓解,非 100% 保证**;若仍偶发,后续加确定性兜底(解析"专注N分钟"强制启动)。待用户验。
 3.9. **[跳桌面诊断探头 · 临时(用户 2026-06-16 复报"说完话/执行动作就跳")]** 静态分析回复路径查不出激活点。埋诊断:`diag()` 写 `/tmp/doubleagent-diag.log`(console.log 不入 electron-vite dev stdout→改 appendFileSync),记 browser-window-focus/blur+chat:send/onDone/driveReplyMood/pushProactive/startFocus/presentChatWindow/app:activate。**待用户复现一次跳转→读日志精准定位→再修(不碰红线配置)→查清后整段删**。
 3.10. **[原生 Gemini 源 · ✅ 已加(用户 2026-06-16,对象在西班牙能直连 Google)]** providers.ts 加 `{id:'google',kind:'pi',piProvider:'google',models:[gemini-2.5-flash/2.5-pro/3-flash-preview]}`。实测 pi.getModel('google',…) 可取、api=google-generative-ai、reasoning=true、vision。key 填 Gemini API Key(pi-ai 走 config.apiKey)。**无需反代**;反代预设保留仅供 Google 受限地区。typecheck+254测过。
+   - **模型/成本决策(用户 2026-06-16,不想花 API 钱)**:① 对象的 **Gemini Pro/Advanced 消费级会员插不进 app**(只在 Google 自家产品如网页/App/Antigravity 内用,无公开 API)；② pi-ai OAuth 只支持 anthropic/copilot/codex,**无 Google 账号登录免 key 通道**(自造非官方通道工作量大且脆弱,不做)；③ **方案=免费 Gemini API key**:aistudio.google.com 用 Google 账号生成免费 key,gemini-2.5-flash 免费层(~10-15 RPM/每天上千次)对闲聊桌宠绰绰有余、$0、免绑卡。**最顺送法=赠予者(你)生成免费 key,打包前预填进配置,对象无感、零成本**(走你免费层额度)。注:免费层数据 Google 可能用于改进产品(隐私小提醒)。
 4. ~~**[抽取节奏优化]**~~ ✅ 已完成 2026-06-15：抽取 debounce（8s 停顿后抽一次省 key + before-quit flush 补抽）。
 5. **[收尾]** ✅ README 功能介绍补全 + ✅ `set_briefing` 已实现 + ✅ 登录项自启动已实现；**仍待真机**：README 截图 / 伴侣国外实测模型 API 可达 / 对方视角从0安装演练。
 
@@ -201,7 +202,8 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
 - [ ] 收掉 3.9 跳桌面(待复现定位) + 验 3.8 工具触发。
 - [ ] 删临时诊断代码(diag/3.9)。
 - [ ] 推 GitHub(本地领先 21 commit)+ 补 LICENSE 文件(package.json 已声明 MIT)+ README 占位截图换真图。
-- [ ] 一台干净 Mac 从零装一遍:TCC 授权(提醒/日历/通知)、模型 API 西班牙可达、开机自启动重启、(若保留)自更新全链路。
+- [ ] **预填免费 Gemini API key**(见 3.10 决策):打包前在默认配置塞一个你生成的 aistudio 免费 key,对象拿到即用、零成本、无感;模型默认设 `google` / gemini-2.5-flash。
+- [ ] 一台干净 Mac 从零装一遍:TCC 授权(提醒/日历/通知)、模型 API(Gemini)西班牙可达、开机自启动重启、(若保留)自更新全链路。
 
 ### 已完成大块（勿重复做）
 对话转待办+核销/晨晚简报/持久化补发/行程前置/倒数日/天气(IP自动定位+手填)/解锁问候/久坐/主动找话题pulse/情绪标签gif桶/番茄钟(即时+计划+对话启停+头顶倒计时+跨天统计周统计)/桌面头顶气泡/结构化画像(抽取+注入+可编辑面板)/记忆模型下拉/配置即对话(set_location·set_supervision·set_daily_reminder·schedule_focus等对话工具,无感行动)/agent多轮工具循环+读取工具/图片vision+模型能力管理/Apple HIG 聊天窗(主页干净·番茄钟⚙各子页·可拖拽放大500x740)/多会话(左侧栏·历史&摘要按会话隔离·画像全局共享·旧单流无损迁移)+记忆靠谱护栏(低置信不注入·保守抽取·口头纠正/面板手改=权威·顺口确认)。
