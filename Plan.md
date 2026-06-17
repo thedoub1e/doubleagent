@@ -196,9 +196,17 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
 4. ~~**[抽取节奏优化]**~~ ✅ 已完成 2026-06-15：抽取 debounce（8s 停顿后抽一次省 key + before-quit flush 补抽）。
 5. **[收尾]** ✅ README 功能介绍补全 + ✅ `set_briefing` 已实现 + ✅ 登录项自启动已实现；**仍待真机**：README 截图 / 伴侣国外实测模型 API 可达 / 对方视角从0安装演练。
 
+3.11. **[傻瓜部署 + 热更新(源码 clone 路线) · ✅ 工具就绪(用户 2026-06-16 拍板:走命令部署而非 DMG,要求热更新不覆盖本地数据)]**
+   - **数据安全(已查实)**:用户记录(config/sessions/history/memory/profile/pomodoro/fired)存 `~/Library/Application Support/doubleagent/`,与 git 仓库**物理隔离**;updater.ts `git pull --ff-only`/`reset` 只动代码够不着数据;migrate.ts 仅当 dataVersion↑ 才迁移、**迁移前 backupUserData 备份到 backup/pre-vN/**、绝不清空。**热更新天然不丢/不覆盖记录**。
+   - **更新通道**:① 首选 app 内「设置→检查更新→现在更新」(已实现,git pull+build+重启+失败回滚);② 备用 `scripts/update.command`。clone 安装满足 resolveRepoRoot,app 内按钮可用。
+   - **新增交付工具**:`scripts/install.command`(幂等:检查 git/node→clone 或 pull→npm install→build→`electron-vite preview` 后台启动)、`scripts/update.command`(备用手更)、`安装说明.md`(给对象的傻瓜三步:装Node→开终端→粘一行 `git clone …&&bash scripts/install.command`)。启动用 `./node_modules/.bin/electron-vite preview` nohup 后台。
+   - **⚠️ 阻塞项**:**GitHub 仓库现为 PRIVATE**,她 clone 会要登录→必须设为 **public**(已扫描:无密钥泄漏/无用户数据被跟踪,可安全公开)。等用户拍板公开。
+   - **源码路线固有代价**(对比 DMG):需她装 Node、首启占终端(nohup 后台缓解)、她机器上 npm build 有失败风险。换取的是 git-pull 热更新现成可用。
+
 ### 🎁 交付前清单（送对象前必做 — 用户 2026-06-16 提出"能给对象用了吗")
-- [ ] **打包成 .app/.dmg**（头号项）：现仅 `npm run dev` 从源码跑,对象(电脑小白)用不了。需加 electron-builder。不上架→**不签名免费**(教对方右键打开一次)或 **$99/年签名公证**(双击零提示)。
-- [ ] **连带:自更新策略**：现 git pull+build 自更新仅源码跑有效;打包后失效→改「手动发新 .app」或 electron-updater+GitHub Releases。
+- [x] ~~打包成 .app/.dmg~~ → **改走源码 clone 路线**(用户拍板,见 3.11):`scripts/install.command` + `安装说明.md` 已就绪,保留 git-pull 热更新。DMG 路线搁置。
+- [x] ~~自更新策略~~ → 源码路线下 app 内「检查更新」直接可用(已实现+E2E 验过),数据物理隔离不丢。
+- [ ] **把 GitHub 仓库设为 public**(3.11 阻塞项):现 PRIVATE,她 clone 过不了。已扫描无密钥泄漏可安全公开。`gh repo edit thedoub1e/doubleagent --visibility public`(待用户授权)。
 - [ ] 收掉 3.9 跳桌面(待复现定位) + 验 3.8 工具触发。
 - [ ] 删临时诊断代码(diag/3.9)。
 - [ ] 推 GitHub(本地领先 21 commit)+ 补 LICENSE 文件(package.json 已声明 MIT)+ README 占位截图换真图。
