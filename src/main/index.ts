@@ -69,7 +69,7 @@ import {
 } from './sessions'
 import { BRIEFING_EVENING_ID, BRIEFING_MORNING_ID, startScheduler } from './scheduler'
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
-import { existsSync } from 'node:fs'
+import { appendFileSync, existsSync } from 'node:fs'
 import { ASSET_DIR, hasAnyGif, loadGifPools, type PetGifPools } from './petAssets'
 import {
   EMOTION_INSTRUCTION,
@@ -101,6 +101,21 @@ type Mood = 'idle' | 'thinking' | 'reply'
 
 function setMood(mood: Mood): void {
   petWindow?.webContents.send('pet:mood', mood)
+}
+
+// ---- 临时诊断（多桌面跳转）：记录窗口焦点变化与关键调用，排查「说完话就从桌面2跳桌面1」。----
+// 查清触发点后整段删除。日志走主进程 stdout（dev 时见 /tmp/doubleagent-dev.log）。
+function diag(msg: string): void {
+  try {
+    appendFileSync('/tmp/doubleagent-diag.log', `[${new Date().toISOString().slice(11, 23)}] ${msg}\n`)
+  } catch {
+    // 诊断写不进就算了，不影响主流程
+  }
+}
+function winName(w: BrowserWindow | null): string {
+  if (w && w === chatWindow) return 'chat'
+  if (w && w === petWindow) return 'pet'
+  return 'other'
 }
 
 function createPetWindow(): void {
@@ -304,6 +319,10 @@ function todayHint(now: Date): string {
     '【绝不编造·铁律】涉及文件内容、命令输出、电脑上的真实情况，**必须先用工具(read_file/list_dir/run_command 等)拿到真实结果再说**；' +
     '工具拒绝了/报错了/没拿到，就**如实告诉她**「我没读到/我打不开」，绝对不许凭空编造文件内容、命令结果或假装看过——' +
     '比如读密钥被拒，就直说「这个我不能读」，不许编出里面有什么。宁可说不知道，也不许编。\n' +
+    '【铁律·别只口头答应却不动手】凡是上面这些她明确要办的事（专注/提醒/倒数日/简报/定位/查改电脑等），' +
+    '**必须真的调用对应工具去做**。绝不允许只回一句「好嘞开始啦」「安排好了」「这就提醒你」却没有实际调用工具——' +
+    '那等于骗她、事情根本没发生（比如她说「陪我专注1分钟」，你必须调用 start_focus，而不是只说「开始啦」）。' +
+    '要么真调用工具办成，要么如实说你这会儿做不了；没调用工具就**不许**说「已开始/已安排/已提醒」。\n' +
     '原则：她明确要办的事，真用工具办好+一句话亲切告诉她；但别为了用工具而用工具，更别没问就推销提醒。' +
     '先接住她的话和心情，是个暖小狗，比勤快地塞工具重要得多。'
   )
@@ -417,6 +436,7 @@ function composePersona(base: ReturnType<typeof loadConfig>): string {
 
 /** 根据回复的情绪标签驱动小狗形象：兴奋→蹦跳(attention 桶)，思考→思考态，其余→回复态。 */
 function driveReplyMood(emotion: Emotion | null): void {
+  diag(`driveReplyMood: ${emotion ?? 'null'}`)
   const state = emotion ? emotionToPetState(emotion) : 'reply'
   if (state === 'attention') {
     setMood('reply')
@@ -436,6 +456,7 @@ function driveReplyMood(emotion: Emotion | null): void {
 // (app 已被点击激活，键盘输入照样进输入框)。
 function presentChatWindow(): void {
   if (!chatWindow) return
+  diag('presentChatWindow')
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   positionChatNearPet()
   chatWindow.showInactive()
@@ -453,6 +474,7 @@ function showChat(): void {
 // 不写进会话历史、不推聊天流（问候/简报/久坐这类不该堆进对话框，避免污染真实对话；
 // 多会话下也不会错落进当前活跃会话）。真正的对话只发生在用户主动开口时。
 function pushProactive(message: string): void {
+  diag('pushProactive')
   // 主动消息也可能带情绪标签（如 composeOpener 走人设指令）→ 先剥开头标签 + 正文标签转 emoji。
   const clean = decorateEmotionTags(parseEmotion(message).clean)
   if (clean.length === 0) return
@@ -811,6 +833,7 @@ function clearPomodoro(): void {
 
 /** 启动专注：可由设置按钮或对话工具调用。返回 endAt 毫秒。 */
 function startFocus(minutes: number): number {
+  diag(`startFocus: ${minutes}min`)
   clearPomodoro()
   const mins =
     Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
@@ -868,6 +891,7 @@ function activityLabel(names: string[]): string {
 
 // ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
 ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
+  diag('chat:send recv')
   const trimmed = (text ?? '').trim()
   const imgs = Array.isArray(images) ? images.filter((u) => typeof u === 'string' && u.startsWith('data:')) : []
   if ((trimmed.length === 0 && imgs.length === 0) || !chatWindow) return
@@ -896,6 +920,7 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
       onStart: () => send('chat:start'),
       onDelta: (delta) => send('chat:delta', delta),
       onDone: (fullText) => {
+        diag('reply onDone')
         // 剥掉开头的 [情绪] 标签（驱动形象，不展示）+ 把正文残留情绪标签转 emoji。
         // 历史/展示都存这份干净文本，形象按情绪命中对应 gif 桶。
         const { emotion, clean } = parseEmotion(fullText)
@@ -975,11 +1000,15 @@ app.whenReady().then(() => {
   startFocusPlanWatcher()
   scheduleUpdateCheck()
   app.on('activate', () => {
+    diag('app:activate')
     if (BrowserWindow.getAllWindows().length === 0) {
       createPetWindow()
       createChatWindow()
     }
   })
+  // 诊断：哪个窗口获得/失去焦点（焦点切换常伴随 macOS 切 Space）。
+  app.on('browser-window-focus', (_e, w) => diag(`window-focus: ${winName(w)}`))
+  app.on('browser-window-blur', (_e, w) => diag(`window-blur: ${winName(w)}`))
 })
 
 // 退出前尽力补抽一次待处理的画像（best-effort；异步可能赶不上退出，属可接受的边缘损失）。
