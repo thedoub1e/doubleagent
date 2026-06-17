@@ -22,6 +22,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'moonshotai', label: 'Kimi · 国际', kind: 'pi', piProvider: 'moonshotai', models: ['kimi-k2.6', 'kimi-k2.5', 'kimi-k2-thinking'] },
   { id: 'moonshotai-cn', label: 'Kimi · 国内', kind: 'pi', piProvider: 'moonshotai-cn', models: ['kimi-k2.6', 'kimi-k2.5', 'kimi-k2-thinking'] },
   { id: 'qwen', label: '通义千问 · OpenAI 兼容', kind: 'openai-compatible', defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus', 'qwen-max', 'qwen-turbo'] },
+  // 原生 Google Gemini（pi-ai provider='google'，key 填 Gemini API Key）。能直连 Google 的地区（如西班牙）首选，无需反代。
+  { id: 'google', label: 'Google Gemini · 原生', kind: 'pi', piProvider: 'google', models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview'] },
+  // Gemini 反代（仅当 Google 被墙/受限时用，填自建 OpenAI 格式反代地址）。
   { id: 'gemini-proxy', label: 'Gemini 反代 · OpenAI 格式', kind: 'openai-compatible', defaultBaseUrl: '', models: ['gemini-2.5-flash', 'gemini-2.5-pro'], vision: true }
 ]
 
