@@ -202,7 +202,7 @@ B. **[Path B 旧·Phase 0 重构]** 已完成(见上方已完成大块)，下面
 3.11. **[傻瓜部署 + 热更新(源码 clone 路线) · ✅ 工具就绪(用户 2026-06-16 拍板:走命令部署而非 DMG,要求热更新不覆盖本地数据)]**
    - **数据安全(已查实)**:用户记录(config/sessions/history/memory/profile/pomodoro/fired)存 `~/Library/Application Support/doubleagent/`,与 git 仓库**物理隔离**;updater.ts `git pull --ff-only`/`reset` 只动代码够不着数据;migrate.ts 仅当 dataVersion↑ 才迁移、**迁移前 backupUserData 备份到 backup/pre-vN/**、绝不清空。**热更新天然不丢/不覆盖记录**。
    - **更新通道**:① 首选 app 内「设置→检查更新→现在更新」(已实现,git pull+build+重启+失败回滚);② 备用 `scripts/update.command`。clone 安装满足 resolveRepoRoot,app 内按钮可用。
-   - **新增交付工具(2026-06-18 升级为 brew 一键丝滑)**:`scripts/setup.sh`=一条命令全自动(没 brew 装 brew→brew install node/git→clone 到 ~/doubleagent→npm install+build→`electron-vite preview` nohup 后台启动,幂等)。`安装说明.md` 主推**一行 curl**:`/bin/bash -c "$(curl -fsSL .../scripts/setup.sh)"`(她只粘一行+按提示输开机密码/回车,中途全自动),备选分步,讲清装在 ~/doubleagent 不用手建文件夹。`install.command` 改为薄包装 exec setup.sh(单一事实来源);`update.command` 备用手更。raw URL 已验匿名可取。
+   - **新增交付工具(2026-06-18 升级为 brew 一键 + 装进当前文件夹)**:`scripts/setup.sh`=一条命令全自动(没 brew 装 brew[NONINTERACTIVE]+写 ~/.zprofile 让新终端也认 node→brew install node/git→**装进运行终端所在的当前文件夹 cwd**:cwd 是仓库→pull / cwd 除 .DS_Store 为空→clone 进 cwd / 否则→clone 进 cwd/doubleagent→npm install+build→`electron-vite preview` nohup 启动,幂等)。**交付流程(用户拍板)**:她自选位置建文件夹→在其中开终端(cd+拖拽 或 右键服务)→粘一行 `/bin/bash -c "$(curl -fsSL .../setup.sh)"`→装进该文件夹。`update.command` 改为操作「本脚本所在仓库」($HERE/..)不写死路径;`install.command` 已删(语义冲突)。clone-into-cwd+幂等已真机验,raw URL 匿名可取。
    - ~~**⚠️ 阻塞项:仓库 PRIVATE**~~ ✅ 已解除(2026-06-16 用户授权):`gh repo edit --visibility public` 设为 PUBLIC + `git push`(8f4fd37) 全部推上;匿名 `git ls-remote` 验证通过→她免登录可 clone。安装说明已讲清安装位置(家目录→doubleagent 文件夹)。
    - **源码路线固有代价**(对比 DMG):需她装 Node、首启占终端(nohup 后台缓解)、她机器上 npm build 有失败风险。换取的是 git-pull 热更新现成可用。
 
