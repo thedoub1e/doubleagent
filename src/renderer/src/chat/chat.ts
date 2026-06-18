@@ -160,7 +160,9 @@ function applyProvider(
   baseUrlField.hidden = !isCustom
   if (isCustom) {
     baseUrlInput.placeholder = preset.defaultBaseUrl || 'https://...'
-    baseUrlInput.value = baseUrl ?? ''
+    // 预填官方接口地址：没存过自定义值时直接显示该源的官方/默认 URL，用户通常只需再填 Key。
+    // （反代等无官方地址的源 defaultBaseUrl 为空，仍需手填。）
+    baseUrlInput.value = baseUrl && baseUrl.length > 0 ? baseUrl : preset.defaultBaseUrl ?? ''
   }
 }
 
