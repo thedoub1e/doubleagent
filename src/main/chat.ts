@@ -34,6 +34,7 @@ function errToText(err: unknown): string {
     const o = err as Record<string, unknown>
     if (typeof o.message === 'string') return o.message
     if (typeof o.error === 'string') return o.error
+    if (typeof o.errorMessage === 'string') return o.errorMessage // pi-ai 错误消息常在此字段
     try {
       return JSON.stringify(err)
     } catch {
@@ -41,6 +42,28 @@ function errToText(err: unknown): string {
     }
   }
   return String(err ?? '未知错误')
+}
+
+/**
+ * 把模型/网络的技术性报错翻成对用户友好的人话（桌宠用户多为非技术）。
+ * 已经是中文短句的友好提示（如「还没填 API Key…」）原样透传；技术错误按类别给温和文案。
+ * 纯函数、可单测。
+ */
+export function friendlyChatError(raw: string): string {
+  // 已是中文短句（多为本程自定义友好提示，如「还没填 API Key…」）→ 原样透传，
+  // 必须最先判断，否则会被下面的技术关键词（如含 "API Key" 字样）误改。
+  if (/[一-龥]/.test(raw) && raw.length <= 60) return raw
+  const s = raw.toLowerCase()
+  if (/\b(50\d|999|api_error|unknown error|internal)\b/.test(s))
+    return '小狗这会儿没连上服务器，等几秒再跟我说一句试试 🐶'
+  if (/\b(401|403|unauthorized|invalid.*key|api[_ -]?key)\b/.test(s))
+    return 'API Key 好像不对或过期了，去「设置」里检查一下 Key 哦 🔑'
+  if (/\b(429|rate.?limit|too many|quota|exceed)\b/.test(s))
+    return '聊得有点快，小狗喘口气～过一小会儿再跟我说 🐶'
+  if (/(timeout|etimedout|econnrefused|enotfound|fetch failed|network|getaddrinfo|socket)/.test(s))
+    return '网络好像不太稳，连不上小狗的大脑，检查下网络再试试 🌐'
+  // 其它未知技术错误 → 温和兜底，绝不甩英文/JSON 给用户。
+  return '小狗刚刚走神了一下，再跟我说一遍好不好 🐶'
 }
 
 // 送进模型的上下文最多保留最近 N 条，控制 token 成本（完整历史另存于 history）。
@@ -186,7 +209,7 @@ export async function runChat(
         } else if (event.type === 'done') {
           assistantMsg = event.message
         } else if (event.type === 'error') {
-          handlers.onError(errToText(event.error))
+          handlers.onError(friendlyChatError(errToText(event.error)))
           return
         }
       }
@@ -217,7 +240,7 @@ export async function runChat(
     if (controller.signal.aborted) {
       handlers.onDone(full)
     } else {
-      handlers.onError(errToText(e))
+      handlers.onError(friendlyChatError(errToText(e)))
     }
   } finally {
     if (currentController === controller) currentController = null

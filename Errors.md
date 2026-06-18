@@ -44,3 +44,9 @@
 2. [LOW] install.command 在 electron 还没起来就打印"✅已出现在桌面",用户可能以为失败而重跑→开两个实例。解决:文案改"正在启动,过几秒出现(第一次稍慢)"。
 3. [LOW] .command 若经浏览器下载会丢执行位→双击 Permission denied(git clone 不丢,故影响小)。解决:脚本顶部自愈 `chmod +x "$0" 2>/dev/null || true`。
 另:清理本会话临时诊断探头(diag()写/tmp,跳桌面排查用,showInactive 修复已留;ship 前移除避免给对象的版本带 /tmp 写入噪声)。补 LICENSE(MIT,package.json 已声明)。
+
+## [2026-06-18] live 真模型测 2 失败=MiniMax 服务端 500(非本程 bug) + 暴露错误提示不友好(已修)
+- scenario.live 跑两次均 16/18:失败 2 例是 MiniMax API 返回 HTTP 500 `{"type":"api_error","message":"unknown error, 999 (1000)"}`——MiniMax 服务端内部错误(错误码 999/1000),跨两次复现=其服务此刻降级,非本程逻辑 bug(16 通过证明工具调用/铁律/路由正常)。
+- 但暴露真问题:errToText 对这类 API 错误对象走 JSON.stringify→给用户一坨 JSON blob,对非技术对象=天书。
+- 解决:① errToText 补读 o.errorMessage 字段;② 新增纯函数 friendlyChatError 把 500/鉴权/限流/网络类技术错误翻成温和中文(🐶),已是中文短友好提示原样透传(透传判断置最前,否则含"API Key"字样的友好提示被401分支误改——已修);③ chat.ts 两处 onError(stream error + catch)套 friendlyChatError。+6 单测。
+- 教训:友好提示透传判断必须先于技术关键词匹配,否则自家中文提示被误改。MiniMax-M3 服务端偶发 500,客户端只能优雅兜底不能修其 infra。
