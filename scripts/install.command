@@ -5,6 +5,7 @@
 #       「应用数据目录」(~/Library/Application Support/doubleagent/)，跟代码物理隔离，更新够不着。
 
 set -e
+chmod +x "$0" 2>/dev/null || true  # 自愈执行位（浏览器下载会丢，双击才需要；git clone 不丢）
 REPO="https://github.com/thedoub1e/doubleagent.git"
 DIR="$HOME/doubleagent"
 
@@ -49,7 +50,8 @@ pkill -f "electron-vite preview" 2>/dev/null || true
 nohup ./node_modules/.bin/electron-vite preview >/tmp/doubleagent-run.log 2>&1 &
 
 echo ""
-echo "✅ 装好啦！小狗已经出现在桌面右下角 🐶"
+echo "✅ 装好啦！小狗正在启动，过几秒就会出现在桌面右下角 🐶"
+echo "   （第一次启动稍慢，耐心等 5 秒左右，别重复跑哦）"
 echo ""
 echo "接下来："
 echo "  • 点小狗打开聊天窗，第一次在「设置」里填一下模型（若已替你填好就跳过）。"

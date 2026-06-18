@@ -4,6 +4,7 @@
 # 同样不碰你的聊天记录和记忆（它们在系统应用数据目录里，跟代码隔离）。
 
 set -e
+chmod +x "$0" 2>/dev/null || true  # 自愈执行位（浏览器下载会丢）
 DIR="$HOME/doubleagent"
 
 if [ ! -d "$DIR/.git" ]; then

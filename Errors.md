@@ -37,3 +37,10 @@
 - 根因：presentChatWindow 用 chatWindow.show()+focus()。Electron 在 macOS 上 win.focus() 会调 [NSApp activateIgnoringOtherApps:YES] 二次激活 app→macOS 切到 app 的「归属 Space」(launch space)。而用户点小狗的物理点击本已把 app 在当前桌面就地激活，再 focus() 纯属重复激活且触发跨 Space 跳。
 - 解决：改用 chatWindow.showInactive()(显示但不激活 app→不切 Space) + moveTop()(置顶,窗口 alwaysOnTop floating) + webContents.focus()(app 已被点击激活，键盘输入仍进输入框)。窗口创建时即 canJoinAllSpaces，本就显示在所有桌面/当前桌面，无需切 Space。renderer 加 visibilitychange→visible 时 inputEl.focus()(showInactive 不自动聚焦 DOM 输入框)。
 - 教训：window.focus()=app 激活=可能跨 Space 跳；菜单栏/桌宠类「就地弹出」窗口应避免 show()/focus()，用 showInactive()+webContents.focus()。仅真机双桌面可终验，自动化测不了 Space 切换。
+
+## [2026-06-18] 上线前总检查 · code-reviewer 审出 3 个 bug(0 CRITICAL/0 HIGH)
+1. [MEDIUM] 打字机 leadingTagPending 误伤:正文以 `[` 开头且该行 `]` 来得晚的回复(如 "[1. 先去…")会被当成「未传完的情绪标签」暂缓吐字→空气泡直到 `]` 到达。非死循环(onDone 兜底写全文),但有空屏延迟。
+   解决:leadingTagPending 加长度上限——仅当 `开头[ 且无] 且 t.length<=7`(情绪标签最多 [+6字]) 才暂缓,否则立即放行。renderer chat.ts。
+2. [LOW] install.command 在 electron 还没起来就打印"✅已出现在桌面",用户可能以为失败而重跑→开两个实例。解决:文案改"正在启动,过几秒出现(第一次稍慢)"。
+3. [LOW] .command 若经浏览器下载会丢执行位→双击 Permission denied(git clone 不丢,故影响小)。解决:脚本顶部自愈 `chmod +x "$0" 2>/dev/null || true`。
+另:清理本会话临时诊断探头(diag()写/tmp,跳桌面排查用,showInactive 修复已留;ship 前移除避免给对象的版本带 /tmp 写入噪声)。补 LICENSE(MIT,package.json 已声明)。

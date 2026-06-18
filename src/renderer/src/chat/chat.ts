@@ -192,9 +192,12 @@ function streamDisplayText(raw: string): string {
 }
 
 // 开头情绪标签可能还在传输中（如收到 "[开" 尚无 "]"）→ 先别吐字，免得方括号一闪。
+// 仅当「短到还可能是个情绪标签」(开头 [、还没 ]、长度 ≤7=「[」+最多6字)时才暂缓；
+// 否则正文以 [ 开头的回复(如 "[1. 先去…")会被一直挡住空屏，立即放行。
 function leadingTagPending(raw: string): boolean {
   const t = raw.replace(/^\s+/, '')
-  return t.startsWith('[') && !t.includes(']')
+  if (!t.startsWith('[')) return false
+  return !t.includes(']') && t.length <= 7
 }
 
 function stopTypewriter(): void {

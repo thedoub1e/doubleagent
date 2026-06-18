@@ -69,7 +69,7 @@ import {
 } from './sessions'
 import { BRIEFING_EVENING_ID, BRIEFING_MORNING_ID, startScheduler } from './scheduler'
 import { PET_IMAGE_EXTENSIONS, petImageDataUrl, storePetImage } from './petImage'
-import { appendFileSync, existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { ASSET_DIR, hasAnyGif, loadGifPools, type PetGifPools } from './petAssets'
 import {
   EMOTION_INSTRUCTION,
@@ -101,21 +101,6 @@ type Mood = 'idle' | 'thinking' | 'reply'
 
 function setMood(mood: Mood): void {
   petWindow?.webContents.send('pet:mood', mood)
-}
-
-// ---- 临时诊断（多桌面跳转）：记录窗口焦点变化与关键调用，排查「说完话就从桌面2跳桌面1」。----
-// 查清触发点后整段删除。日志走主进程 stdout（dev 时见 /tmp/doubleagent-dev.log）。
-function diag(msg: string): void {
-  try {
-    appendFileSync('/tmp/doubleagent-diag.log', `[${new Date().toISOString().slice(11, 23)}] ${msg}\n`)
-  } catch {
-    // 诊断写不进就算了，不影响主流程
-  }
-}
-function winName(w: BrowserWindow | null): string {
-  if (w && w === chatWindow) return 'chat'
-  if (w && w === petWindow) return 'pet'
-  return 'other'
 }
 
 function createPetWindow(): void {
@@ -436,7 +421,6 @@ function composePersona(base: ReturnType<typeof loadConfig>): string {
 
 /** 根据回复的情绪标签驱动小狗形象：兴奋→蹦跳(attention 桶)，思考→思考态，其余→回复态。 */
 function driveReplyMood(emotion: Emotion | null): void {
-  diag(`driveReplyMood: ${emotion ?? 'null'}`)
   const state = emotion ? emotionToPetState(emotion) : 'reply'
   if (state === 'attention') {
     setMood('reply')
@@ -456,7 +440,6 @@ function driveReplyMood(emotion: Emotion | null): void {
 // (app 已被点击激活，键盘输入照样进输入框)。
 function presentChatWindow(): void {
   if (!chatWindow) return
-  diag('presentChatWindow')
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   positionChatNearPet()
   chatWindow.showInactive()
@@ -474,7 +457,6 @@ function showChat(): void {
 // 不写进会话历史、不推聊天流（问候/简报/久坐这类不该堆进对话框，避免污染真实对话；
 // 多会话下也不会错落进当前活跃会话）。真正的对话只发生在用户主动开口时。
 function pushProactive(message: string): void {
-  diag('pushProactive')
   // 主动消息也可能带情绪标签（如 composeOpener 走人设指令）→ 先剥开头标签 + 正文标签转 emoji。
   const clean = decorateEmotionTags(parseEmotion(message).clean)
   if (clean.length === 0) return
@@ -833,7 +815,6 @@ function clearPomodoro(): void {
 
 /** 启动专注：可由设置按钮或对话工具调用。返回 endAt 毫秒。 */
 function startFocus(minutes: number): number {
-  diag(`startFocus: ${minutes}min`)
   clearPomodoro()
   const mins =
     Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, MAX_FOCUS_MINUTES) : DEFAULT_FOCUS_MINUTES
@@ -891,7 +872,6 @@ function activityLabel(names: string[]): string {
 
 // ---- 一轮对话：编排 pi-ai 流式 + 驱动小狗情绪 ----
 ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
-  diag('chat:send recv')
   const trimmed = (text ?? '').trim()
   const imgs = Array.isArray(images) ? images.filter((u) => typeof u === 'string' && u.startsWith('data:')) : []
   if ((trimmed.length === 0 && imgs.length === 0) || !chatWindow) return
@@ -920,7 +900,6 @@ ipcMain.on('chat:send', async (_e, text: string, images?: string[]) => {
       onStart: () => send('chat:start'),
       onDelta: (delta) => send('chat:delta', delta),
       onDone: (fullText) => {
-        diag('reply onDone')
         // 剥掉开头的 [情绪] 标签（驱动形象，不展示）+ 把正文残留情绪标签转 emoji。
         // 历史/展示都存这份干净文本，形象按情绪命中对应 gif 桶。
         const { emotion, clean } = parseEmotion(fullText)
@@ -1000,15 +979,11 @@ app.whenReady().then(() => {
   startFocusPlanWatcher()
   scheduleUpdateCheck()
   app.on('activate', () => {
-    diag('app:activate')
     if (BrowserWindow.getAllWindows().length === 0) {
       createPetWindow()
       createChatWindow()
     }
   })
-  // 诊断：哪个窗口获得/失去焦点（焦点切换常伴随 macOS 切 Space）。
-  app.on('browser-window-focus', (_e, w) => diag(`window-focus: ${winName(w)}`))
-  app.on('browser-window-blur', (_e, w) => diag(`window-blur: ${winName(w)}`))
 })
 
 // 退出前尽力补抽一次待处理的画像（best-effort；异步可能赶不上退出，属可接受的边缘损失）。
